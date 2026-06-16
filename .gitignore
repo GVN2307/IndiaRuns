@@ -1,0 +1,22 @@
+# Large binary files
+*.npy
+*.pkl
+*.pth
+*.model
+*.h5
+
+# Model directory
+models/
+
+# Output files
+output/
+
+# Cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Environment
+.env
+venv/
+env/

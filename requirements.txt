@@ -1,0 +1,11 @@
+numpy
+pandas
+scikit-learn
+sentence-transformers
+torch
+scipy
+tqdm
+faiss-cpu
+python-docx
+markdown
+python-dotenv
