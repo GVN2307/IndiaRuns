@@ -24,7 +24,7 @@ compute:
   uses_gpu_for_inference: false
   has_network_during_ranking: false
   pre_computation_required: true
-  pre_computation_time_minutes: 15
+  pre_computation_time_minutes: 105
 
 ai_tools_used:
   - "Gemini"

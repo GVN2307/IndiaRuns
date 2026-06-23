@@ -1,4 +1,14 @@
 import os
+import re
+
+NON_TECH_TITLE_PATTERN = re.compile(
+    r"\b(civil|mechanical|electrical|chemical|sales|marketing|hr|human resources|recruiter|recruiting|"
+    r"talent acquisition|accountant|accounting|finance|customer support|data entry|office manager|"
+    r"business analyst|financial analyst|operations manager|project manager|graphic designer|"
+    r"ui designer|ux designer|product manager|scrum master|it manager|it director)\b|ui/ux designer",
+    re.IGNORECASE
+)
+
 
 # Paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -28,7 +38,7 @@ IDEAL_YEARS_MAX = 9
 IDEAL_YEARS_PEAK = 7
 
 # Company lists
-CONSULTING_COMPANIES = ["TCS", "Infosys", "Wipro", "Accenture", "Cognizant", "Capgemini", "Tech Mahindra", "HCL"]
+CONSULTING_COMPANIES = ["TCS", "Infosys", "Wipro", "Accenture", "Cognizant", "Capgemini", "Tech Mahindra", "HCL", "Genpact"]
 PRODUCT_COMPANIES = ["Swiggy", "Zomato", "Uber", "CRED", "Razorpay", "Ola", "Flipkart", "Amazon", "Google", "Microsoft"]
 
 # Company Founding Years (for timeline checks)
@@ -50,7 +60,18 @@ FOUNDING_YEARS = {
     "Cognizant": 1994,
     "Capgemini": 1967,
     "Tech Mahindra": 1986,
-    "HCL": 1976
+    "HCL": 1976,
+    "Redrob AI": 2023,
+    "Redrob": 2023,
+    "Cure.fit": 2016,
+    "Curefit": 2016,
+    "PhonePe": 2015,
+    "Paytm": 2010,
+    "BharatPe": 2018,
+    "Groww": 2016,
+    "Meesho": 2015,
+    "Zepto": 2021,
+    "Blinkit": 2013
 }
 
 # Skill criteria
@@ -75,16 +96,17 @@ PROFICIENCY_WEIGHTS = {
 }
 
 SCORE_WEIGHTS = {
-    "semantic": 0.35,
-    "structured": 0.40,
-    "vector": 0.25
+    "semantic": 0.20,
+    "bm25": 0.20,
+    "vector": 0.15,
+    "structured": 0.45
 }
 
 BEHAVIORAL_MULTIPLIERS = {
-    "inactive_penalty": 0.75,       # last_active > 90 days AND not open_to_work
-    "low_response_penalty": 0.85,   # recruiter_response_rate < 0.2
-    "long_notice_penalty": 0.90,    # notice_period_days > 90
-    "low_completion_penalty": 0.90  # interview_completion_rate < 0.3
+    "inactive_penalty": 0.40,       # last_active > 90 days AND not open_to_work
+    "low_response_penalty": 0.40,   # recruiter_response_rate < 0.2
+    "long_notice_penalty": 0.60,    # notice_period_days > 90
+    "low_completion_penalty": 0.60  # interview_completion_rate < 0.3
 }
 
 # Global Reference Date (for calculating active days)

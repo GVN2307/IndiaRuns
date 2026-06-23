@@ -13,6 +13,21 @@ class JDRequirements:
     disqualifiers: List[str] = field(default_factory=list)
     behavioral_importance: Dict[str, float] = field(default_factory=dict)
 
+    def to_embedding_text(self) -> str:
+        parts = [
+            f"Role: Senior AI Engineer",
+            f"Required skills: {', '.join(self.must_have_skills[:8])}",
+            f"Nice to have: {', '.join(self.nice_to_have_skills[:5])}",
+            f"Experience: {self.ideal_experience_range[0]}-{self.ideal_experience_range[1]} years",
+            f"Location: {self.location_preference}",
+            f"Must have shipped embeddings-based retrieval to real users",
+            f"Must have vector database production experience",
+            f"Strong Python, evaluation frameworks NDCG MRR MAP A/B testing",
+            f"Product company experience preferred",
+            f"Not pure research, not consulting-only, not title-chasers"
+        ]
+        return ". ".join(parts)
+
 def parse_jd(filepath: str) -> JDRequirements:
     """
     Parses job_description.md and extracts key requirements.

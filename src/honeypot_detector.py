@@ -1,6 +1,6 @@
 import re
 from typing import Dict, Any, Set, Tuple
-from src.config import FOUNDING_YEARS, CONSULTING_COMPANIES
+from src.config import FOUNDING_YEARS, CONSULTING_COMPANIES, NON_TECH_TITLE_PATTERN
 
 def check_timeline_impossibility(candidate: Dict[str, Any]) -> Tuple[bool, str]:
     career = candidate.get("career_history", [])
@@ -114,9 +114,70 @@ def check_plain_language_tier5(candidate: Dict[str, Any]) -> Tuple[bool, str]:
             
     return False, ""
 
+def check_non_tech_title_with_tech_skills(candidate: Dict[str, Any]) -> Tuple[bool, str]:
+    """
+    Flags candidates with non-technical job titles who claim
+    an unrealistic number of AI/ML skills (title-chasers / honeypots).
+    """
+    profile = candidate.get("profile", {})
+    title = profile.get("current_title", "").lower()
+    
+    is_non_tech = bool(NON_TECH_TITLE_PATTERN.search(title))
+    if not is_non_tech:
+        return False, ""
+        
+    # Count AI/ML-related skills
+    ai_keywords = [
+        "ai", "ml", "embedding", "vector", "llm", "rag", "fine-tuning",
+        "retrieval", "ranking", "faiss", "pinecone", "milvus", "weaviate",
+        "sentence-transformer", "transformer", "pytorch", "tensorflow",
+        "information retrieval", "vector search", "ndcg", "mrr", "map"
+    ]
+    skills = candidate.get("skills", [])
+    ai_skill_count = sum(
+        1 for s in skills
+        if any(kw in s.get("name", "").lower() for kw in ai_keywords)
+    )
+    
+    if ai_skill_count >= 3:
+        return True, f"Non-technical title '{title}' with {ai_skill_count} AI/ML skills (likely keyword-stuffing)"
+        
+    return False, ""
+
+def check_non_tech_high_exp_low_skill(candidate: Dict[str, Any]) -> Tuple[bool, str]:
+    """
+    Flags non-technical titles that have high years of experience but 
+    minimal actual AI/ML skills - likely false positives from experience Gaussian.
+    """
+    profile = candidate.get("profile", {})
+    title = profile.get("current_title", "").lower()
+    
+    is_non_tech = bool(NON_TECH_TITLE_PATTERN.search(title))
+    if not is_non_tech:
+        return False, ""
+    
+    years = profile.get("years_of_experience", 0.0)
+    if years < 5:  # Only flag those in the sweet spot
+        return False, ""
+    
+    # Count actual must-have skills
+    from src.config import MUST_HAVE_SKILLS
+    must_have_set = {s.lower() for s in MUST_HAVE_SKILLS}
+    skills = candidate.get("skills", [])
+    must_have_count = sum(
+        1 for s in skills
+        if any(kw in s.get("name", "").lower() for kw in must_have_set)
+    )
+    
+    # If in experience sweet spot but has <2 must-have skills, likely false positive
+    if must_have_count < 2:
+        return True, f"Non-technical title '{title}' with {years} years exp but only {must_have_count} must-have skills"
+        
+    return False, ""
+
 def run_honeypot_checks(candidate: Dict[str, Any]) -> Tuple[bool, str]:
     """
-    Runs all 6 honeypot checks on a candidate record.
+    Runs all 8 honeypot checks on a candidate record.
     Returns:
         is_flagged: True if flagged by any check.
         reason: Description of the violation.
@@ -127,7 +188,9 @@ def run_honeypot_checks(candidate: Dict[str, Any]) -> Tuple[bool, str]:
         check_title_description_mismatch,
         check_keyword_stuffing,
         check_consulting_trap,
-        check_plain_language_tier5
+        check_plain_language_tier5,
+        check_non_tech_title_with_tech_skills,
+        check_non_tech_high_exp_low_skill
     ]
     
     for check in checks:

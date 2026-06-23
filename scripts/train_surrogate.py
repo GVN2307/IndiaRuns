@@ -14,7 +14,7 @@ sys.path.append(BASE_DIR)
 
 from src.config import CANDIDATES_PATH, SURROGATE_PATH, JD_PATH
 from src.data_loader import load_all_candidates
-from src.features import extract_features
+from src.features import extract_features, flatten_features
 from src.structured_scorer import compute_structured_score
 
 def get_heuristic_score(cand, features):
@@ -129,36 +129,7 @@ def main():
     for idx, cand in enumerate(sampled_candidates):
         features = extract_features(cand)
         
-        # Flatten features dict into list
-        # MUST match vector in structured_scorer.py
-        skill_feat = features.get("skill_features", {})
-        exp_feat = features.get("experience_features", {})
-        edu_feat = features.get("education_features", {})
-        beh_feat = features.get("behavioral_features", {})
-        career_feat = features.get("career_quality", {})
-        
-        feature_vector = [
-            skill_feat.get("must_have_count", 0),
-            skill_feat.get("nice_to_have_count", 0),
-            skill_feat.get("avg_proficiency", 0.0),
-            skill_feat.get("weighted_score", 0.0),
-            float(skill_feat.get("keyword_stuffing_flag", False)),
-            exp_feat.get("years", 0.0),
-            exp_feat.get("product_company_ratio", 0.0),
-            exp_feat.get("consulting_company_ratio", 0.0),
-            exp_feat.get("title_consistency", 0.0),
-            exp_feat.get("description_quality", 0.0),
-            edu_feat.get("tier_score", 0.0),
-            edu_feat.get("field_relevance", 0.0),
-            edu_feat.get("degree_level", 0.0),
-            float(beh_feat.get("open_to_work", False)),
-            beh_feat.get("response_rate", 0.0),
-            float(beh_feat.get("active_status", 365)),
-            beh_feat.get("completion_rate", 0.0),
-            beh_feat.get("profile_completeness", 0.0),
-            career_feat.get("progression", 0.0),
-            career_feat.get("current_role_relevance", 0.0)
-        ]
+        feature_vector = flatten_features(features)
         
         # Determine label (score)
         score = None

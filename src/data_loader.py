@@ -18,8 +18,10 @@ def stream_candidates(filepath):
                     continue
                 try:
                     candidate = json.loads(line)
-                    # Gracefully clean up fields to prevent KeyErrors later
-                    yield sanitize_candidate(candidate)
+                    sanitized = sanitize_candidate(candidate)
+                    if not sanitized or sanitized.get("candidate_id") == "UNKNOWN":
+                        continue
+                    yield sanitized
                 except json.JSONDecodeError:
                     continue
     except Exception as e:

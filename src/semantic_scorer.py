@@ -16,25 +16,54 @@ def get_model():
 
 def create_candidate_text(candidate):
     """
-    Creates a highly optimized concise text representation for the candidate.
-    Extremely fast to encode on CPU while preserving all major search signals.
+    Creates a detailed text representation for the candidate to ensure rich semantic mapping
+    of summaries, career history, skills, education, and behavioral signals.
     """
     profile = candidate.get("profile", {})
-    headline = profile.get("headline", "")
     current_title = profile.get("current_title", "")
-    current_company = profile.get("current_company", "")
+    years_exp = profile.get("years_of_experience", 0.0)
+    summary = profile.get("summary", "")
+    
+    career = candidate.get("career_history", [])
+    career_parts = []
+    for job in career:
+        comp = job.get("company", "")
+        title = job.get("title", "")
+        desc = job.get("description", "")
+        career_parts.append(f"{comp}\n{title}\n{desc}")
+    career_str = "\n\n".join(career_parts)
     
     skills = [s.get("name", "") for s in candidate.get("skills", [])]
-    skills_str = ", ".join(skills[:10])
+    skills_str = "\n".join(skills)
     
-    parts = []
-    parts.append(f"Title: {current_title} at {current_company}.")
-    if headline:
-        parts.append(f"Headline: {headline}.")
-    if skills_str:
-        parts.append(f"Skills: {skills_str}.")
-        
-    return " ".join(parts)
+    education = candidate.get("education", [])
+    edu_parts = []
+    for edu in education:
+        inst = edu.get("institution", "")
+        deg = edu.get("degree", "")
+        field = edu.get("field_of_study", "")
+        edu_parts.append(f"{inst} - {deg} in {field}")
+    edu_str = "\n".join(edu_parts)
+    
+    signals = candidate.get("redrob_signals", {})
+    response_rate = signals.get("recruiter_response_rate", 0.0)
+    notice = signals.get("notice_period_days", 90)
+    behavior_str = f"Response Rate {response_rate:.0%}\nNotice Period {notice} days"
+    
+    parts = [
+        f"{current_title}",
+        f"{years_exp:.1f} years experience",
+        f"{summary}",
+        "Career:",
+        f"{career_str}",
+        "Skills:",
+        f"{skills_str}",
+        "Education:",
+        f"{edu_str}",
+        "Behavior:",
+        f"{behavior_str}"
+    ]
+    return "\n\n".join([p.strip() for p in parts if p.strip()])
 
 def compute_embeddings(texts, batch_size=BATCH_SIZE):
     """

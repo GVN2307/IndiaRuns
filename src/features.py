@@ -1,9 +1,9 @@
 import re
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, List
 from src.config import (
     MUST_HAVE_SKILLS, NICE_TO_HAVE_SKILLS, PRODUCT_COMPANIES, CONSULTING_COMPANIES, 
-    PROFICIENCY_WEIGHTS, REFERENCE_DATE
+    PROFICIENCY_WEIGHTS, REFERENCE_DATE, NON_TECH_TITLE_PATTERN
 )
 
 def parse_date(date_str):
@@ -14,6 +14,21 @@ def parse_date(date_str):
         return datetime.strptime(date_str.strip(), "%Y-%m-%d")
     except (ValueError, TypeError):
         return None
+
+def is_skill_match(skill_name: str, target_skills: set) -> bool:
+    s_lower = skill_name.lower()
+    if s_lower in target_skills:
+        return True
+    for target in target_skills:
+        if target in s_lower:
+            idx = s_lower.find(target)
+            while idx != -1:
+                before = idx > 0 and s_lower[idx-1].isalnum()
+                after = idx + len(target) < len(s_lower) and s_lower[idx + len(target)].isalnum()
+                if not before and not after:
+                    return True
+                idx = s_lower.find(target, idx + 1)
+    return False
 
 def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
     """
@@ -44,8 +59,8 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
         dur = s.get("duration_months", 0)
         weight = PROFICIENCY_WEIGHTS.get(prof, 0.2)
         
-        is_must = s_name in must_have_set or any(m in s_name for m in must_have_set)
-        is_nice = s_name in nice_to_have_set or any(n in s_name for n in nice_to_have_set)
+        is_must = is_skill_match(s_name, must_have_set)
+        is_nice = is_skill_match(s_name, nice_to_have_set)
         
         if is_must:
             must_have_count += 1
@@ -88,8 +103,20 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
     desc_word_count = 0
     tech_word_mentions = 0
     
-    tech_title_patterns = re.compile(r"(engineer|developer|scientist|analyst|programmer|architect|lead|founding|found)", re.IGNORECASE)
+    tech_title_patterns = re.compile(
+        r"(software engineer|backend engineer|frontend engineer|data engineer|ml engineer|ai engineer|"
+        r"machine learning engineer|data scientist|research scientist|nlp engineer|search engineer|"
+        r"computer vision engineer|deep learning engineer|applied scientist|research engineer|"
+        r"software developer|backend developer|systems developer|python developer|ml developer|ai developer|"
+        r"full stack developer|full-stack developer|data developer|software programmer|python programmer|"
+        r"architect|tech lead|engineering lead|founding engineer|founder|"
+        r"staff engineer|principal engineer|distinguished engineer|engineering manager|"
+        r"ai researcher|platform engineer|infrastructure engineer|site reliability engineer|sre)",
+        re.IGNORECASE
+    )
     tech_keyword_patterns = re.compile(r"(embeddings|vector|retrieval|ranking|llm|fine-tuning|rag|similarity|search|python|code|pytorch|tensorflow|mlflow|pipeline|model|algorithm|deploy)", re.IGNORECASE)
+    production_pattern = re.compile(r"\b(shipped|deployed|production|a/b test|a/b testing)\b", re.IGNORECASE)
+    has_production_exp = False
     
     for job in career_history:
         company = job.get("company", "").strip()
@@ -105,8 +132,8 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
         if is_consulting:
             consulting_company_count += 1
             
-        # Title consistency (check if title matches tech roles)
-        if tech_title_patterns.search(title):
+        # Title consistency (check if title matches tech roles and is not a non-tech title)
+        if tech_title_patterns.search(title) and not NON_TECH_TITLE_PATTERN.search(title):
             title_tech_count += 1
             
         # Description quality
@@ -115,6 +142,10 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
         
         # Tech keyword count in descriptions
         tech_word_mentions += len(tech_keyword_patterns.findall(desc))
+        
+        # Check for production/shipping keywords
+        if production_pattern.search(desc) or production_pattern.search(title):
+            has_production_exp = True
 
     product_company_ratio = product_company_count / total_jobs if total_jobs > 0 else 0.0
     consulting_company_ratio = consulting_company_count / total_jobs if total_jobs > 0 else 0.0
@@ -129,7 +160,8 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
         "product_company_ratio": product_company_ratio,
         "consulting_company_ratio": consulting_company_ratio,
         "title_consistency": title_consistency,
-        "description_quality": description_quality
+        "description_quality": description_quality,
+        "production_shipping_flag": has_production_exp
     }
 
     # ----------------------------------------------------
@@ -189,6 +221,9 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
     completion_rate = signals.get("interview_completion_rate", 0.0)
     profile_completeness = signals.get("profile_completeness_score", 0.0) / 100.0
     
+    applications_30d = signals.get("applications_submitted_30d", 0)
+    spammy_flag = applications_30d > 10
+
     # Calculate days since active using REFERENCE_DATE
     ref_dt = parse_date(REFERENCE_DATE)
     act_dt = parse_date(signals.get("last_active_date", ""))
@@ -198,13 +233,36 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
     else:
         days_since_active = 365 # Default to inactive if date is missing
 
+    # Location preferences
+    location = profile.get("location", "").lower()
+    is_pune_noida = "pune" in location or "noida" in location
+    willing_to_relocate = signals.get("willing_to_relocate", False)
+
+    # GitHub activity score
+    github_score = signals.get("github_activity_score", -1.0)
+
+    # Skill assessments check
+    has_high_assessment = False
+    assessment_scores = signals.get("skill_assessment_scores", {})
+    if isinstance(assessment_scores, dict):
+        for s_name, score in assessment_scores.items():
+            if isinstance(score, (int, float)) and score > 80:
+                has_high_assessment = True
+                break
+
     behavioral_features = {
         "open_to_work": open_to_work,
         "response_rate": response_rate,
         "active_status": days_since_active, # Lower is better (more active)
         "notice_period": notice_period,
         "completion_rate": completion_rate,
-        "profile_completeness": profile_completeness
+        "profile_completeness": profile_completeness,
+        "applications_submitted_30d": applications_30d,
+        "spammy_applications": spammy_flag,
+        "is_pune_noida": is_pune_noida,
+        "willing_to_relocate": willing_to_relocate,
+        "github_activity_score": github_score,
+        "has_high_assessment": has_high_assessment
     }
 
     # ----------------------------------------------------
@@ -248,20 +306,57 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
     headline = profile.get("headline", "").lower()
     summary = profile.get("summary", "").lower()
     
-    current_role_relevance = 0.1
-    if any(kw in current_title or kw in headline for kw in ["ai", "ml", "machine learning", "nlp", "vector search", "retrieval", "ranking"]):
-        current_role_relevance = 1.0
-    elif any(kw in current_title or kw in headline for kw in ["data scientist", "deep learning", "computer vision"]):
-        current_role_relevance = 0.8
-    elif any(kw in current_title or kw in headline for kw in ["software engineer", "backend", "data engineer"]):
-        current_role_relevance = 0.6
-    elif any(kw in summary for kw in ["ai", "ml", "machine learning", "nlp", "retrieval"]):
-        current_role_relevance = 0.4
+    current_role_relevance = 0.05
+    is_non_tech_title = bool(NON_TECH_TITLE_PATTERN.search(current_title))
+
+    if is_non_tech_title:
+        # Non-tech titles can only get minimal relevance even if they mention AI in summary
+        # They need STRONG evidence: must-have skills AND tech job history
+        has_strong_tech_evidence = (
+            skill_features.get("must_have_count", 0) >= 3 and  # Actually has the skills
+            experience_features.get("title_consistency", 0) > 0.5      # Tech titles in career history
+        )
+        if has_strong_tech_evidence:
+            current_role_relevance = 0.15  # Capped low even with evidence
+        else:
+            current_role_relevance = 0.05  # Default for non-tech
+    else:
+        # Tech titles - existing logic applies
+        if any(kw in current_title or kw in headline for kw in ["ai", "ml", "machine learning", "nlp", "vector search", "retrieval", "ranking"]):
+            current_role_relevance = 1.0
+        elif "data scientist" in current_title or "data scientist" in headline:
+            eng_pattern = re.compile(r"\b(software engineer|backend engineer|frontend engineer|data engineer|ml engineer|ai engineer|machine learning engineer|systems engineer|platform engineer|infrastructure engineer|developer|programmer)\b", re.IGNORECASE)
+            has_eng_exp = any(eng_pattern.search(job.get("title", "")) for job in career_history)
+            current_role_relevance = 0.6 if has_eng_exp else 0.2
+        elif "deep learning" in current_title or "deep learning" in headline:
+            current_role_relevance = 0.6
+        elif "computer vision" in current_title or "computer vision" in headline:
+            # JD says CV without NLP/IR is a disqualifier
+            has_nlp = any(kw in summary for kw in ["nlp", "natural language", "text", "retrieval", "ranking"])
+            current_role_relevance = 0.5 if has_nlp else 0.10
+        elif any(kw in current_title or kw in headline for kw in ["software engineer", "backend", "data engineer"]):
+            current_role_relevance = 0.6
+        elif any(kw in summary for kw in ["ai", "ml", "machine learning", "nlp", "retrieval"]):
+            current_role_relevance = 0.4
+        else:
+            current_role_relevance = 0.05
+
+    # Penalize "Junior" titles with high experience
+    if any(jw in current_title for jw in ["junior", "associate", "intern"]) and years > 4:
+        current_role_relevance *= 0.3  # Heavy penalty
 
     career_quality = {
         "progression": progression,
-        "current_role_relevance": current_role_relevance
+        "current_role_relevance": current_role_relevance,
+        "is_non_tech": bool(NON_TECH_TITLE_PATTERN.search(current_title))
     }
+
+    # Penalize skill claims from non-tech titles severely
+    if career_quality.get("is_non_tech", False):
+        skill_features["must_have_count"] = int(skill_features.get("must_have_count", 0) * 0.2)
+        skill_features["nice_to_have_count"] = int(skill_features.get("nice_to_have_count", 0) * 0.2)
+        skill_features["avg_proficiency"] *= 0.3
+        skill_features["weighted_score"] *= 0.1
 
     return {
         "skill_features": skill_features,
@@ -270,3 +365,37 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
         "behavioral_features": behavioral_features,
         "career_quality": career_quality
     }
+
+def flatten_features(features: Dict[str, Any]) -> List[float]:
+    """
+    Flattens the candidate features dictionary into a 20-element 1D list in a fixed order.
+    MUST be consistent between structured_scorer.py and train_surrogate.py.
+    """
+    skill_feat = features.get("skill_features", {})
+    exp_feat = features.get("experience_features", {})
+    edu_feat = features.get("education_features", {})
+    beh_feat = features.get("behavioral_features", {})
+    career_feat = features.get("career_quality", {})
+    
+    return [
+        float(skill_feat.get("must_have_count", 0)),
+        float(skill_feat.get("nice_to_have_count", 0)),
+        float(skill_feat.get("avg_proficiency", 0.0)),
+        float(skill_feat.get("weighted_score", 0.0)),
+        float(skill_feat.get("keyword_stuffing_flag", False)),
+        float(exp_feat.get("years", 0.0)),
+        float(exp_feat.get("product_company_ratio", 0.0)),
+        float(exp_feat.get("consulting_company_ratio", 0.0)),
+        float(exp_feat.get("title_consistency", 0.0)),
+        float(exp_feat.get("description_quality", 0.0)),
+        float(edu_feat.get("tier_score", 0.0)),
+        float(edu_feat.get("field_relevance", 0.0)),
+        float(edu_feat.get("degree_level", 0.0)),
+        float(beh_feat.get("open_to_work", False)),
+        float(beh_feat.get("response_rate", 0.0)),
+        float(beh_feat.get("active_status", 365)),
+        float(beh_feat.get("completion_rate", 0.0)),
+        float(beh_feat.get("profile_completeness", 0.0)),
+        float(career_feat.get("progression", 0.0)),
+        float(career_feat.get("current_role_relevance", 0.0))
+    ]

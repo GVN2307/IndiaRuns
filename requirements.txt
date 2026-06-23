@@ -9,3 +9,4 @@ faiss-cpu
 python-docx
 markdown
 python-dotenv
+rank-bm25

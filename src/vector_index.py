@@ -48,7 +48,7 @@ def scores_from_search(indices, distances, total_candidates):
     Candidates in the top-k get their similarity scaled to 0-100.
     Non-matches (not in top-k) get a baseline low score of 10.0.
     """
-    scores = np.full(total_candidates, 10.0, dtype=np.float32)
+    scores = np.full(total_candidates, 5.0, dtype=np.float32)
     
     if len(indices) == 0:
         return scores
