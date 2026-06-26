@@ -344,28 +344,7 @@ def load_faiss_and_ids():
         candidate_ids = json.load(f)
     return index, candidate_ids
 
-@st.cache_resource(show_spinner=False)
-def load_candidates_db():
-    candidates_path = "data/candidates.jsonl.gz"
-    if not os.path.exists(candidates_path):
-        # Fallback if gz not present
-        candidates_path = "data/sample_candidates.json"
-        if not os.path.exists(candidates_path):
-            st.error(f"Candidate database file not found at {candidates_path}!")
-            return {}
-            
-    candidates = {}
-    if candidates_path.endswith('.gz'):
-        with gzip.open(candidates_path, 'rt', encoding='utf-8') as f:
-            for line in f:
-                cand = json.loads(line)
-                candidates[cand["candidate_id"]] = cand
-    else:
-        with open(candidates_path, 'r', encoding='utf-8') as f:
-            for line in f:
-                cand = json.loads(line)
-                candidates[cand["candidate_id"]] = cand
-    return candidates
+
 
 @st.cache_resource(show_spinner=False)
 def load_ml_models():
@@ -519,7 +498,7 @@ if not is_valid_index:
     st.stop()
 
 # Warm up data loading in background
-with st.spinner("Initializing models & database (100,000 candidates)... This may take 10-15s on first load."):
+with st.spinner("Initializing models & index (100,000 candidates)... This may take 10-15s on first load."):
     try:
         index, candidate_ids = load_faiss_and_ids()
     except Exception as e:
@@ -533,7 +512,6 @@ with st.spinner("Initializing models & database (100,000 candidates)... This may
         st.info("The downloaded index file may be corrupted (e.g. if the download link was not a direct download URL and returned an HTML page). The invalid file has been deleted. Please refresh/reload the page to try downloading again with a verified direct download link.")
         st.stop()
         
-    candidates_db = load_candidates_db()
     sem_model, reranker = load_ml_models()
 
 # ----------------------------------------------------
@@ -542,11 +520,11 @@ with st.spinner("Initializing models & database (100,000 candidates)... This may
 def run_interactive_pipeline(
     jd_reqs, 
     weights, 
-    candidates_db, 
     index, 
     candidate_ids, 
     sem_model, 
-    reranker
+    reranker,
+    candidates_db=None
 ):
     query_text = jd_reqs.to_embedding_text()
     
@@ -554,6 +532,12 @@ def run_interactive_pipeline(
     from src.semantic_scorer import get_model as get_faiss_model
     faiss_model = get_faiss_model()
     jd_embedding = faiss_model.encode([query_text], convert_to_numpy=True, normalize_embeddings=True)[0]
+    
+    # Free memory of first-stage embedding model since it is no longer needed
+    import src.semantic_scorer
+    src.semantic_scorer._model = None
+    import gc
+    gc.collect()
     
     k_search = min(250, len(candidate_ids))
     retrieved_indices, retrieved_distances = search(jd_embedding, index, k=k_search)
@@ -563,6 +547,38 @@ def run_interactive_pipeline(
     retrieved_cids_set = set(retrieved_cids)
     
     # 2. Candidate Filtering & Features Extraction
+    if candidates_db is None:
+        candidates_db = {}
+        candidates_path = "data/candidates.jsonl.gz"
+        if not os.path.exists(candidates_path):
+            candidates_path = "data/sample_candidates.json"
+            
+        if candidates_path.endswith('.gz'):
+            import gzip
+            from src.data_loader import sanitize_candidate
+            with gzip.open(candidates_path, 'rt', encoding='utf-8') as f:
+                for line in f:
+                    idx = line.find('"candidate_id": "')
+                    if idx != -1:
+                        start_idx = idx + 17
+                        end_idx = line.find('"', start_idx)
+                        cand_id = line[start_idx:end_idx]
+                        if cand_id in retrieved_cids_set:
+                            try:
+                                cand = json.loads(line)
+                                candidates_db[cand_id] = sanitize_candidate(cand)
+                            except Exception:
+                                pass
+                            if len(candidates_db) >= len(retrieved_cids_set):
+                                break
+        else:
+            # Fallback for sample_candidates.json
+            from src.data_loader import load_sample_candidates
+            for cand in load_sample_candidates(candidates_path):
+                cid = cand.get("candidate_id")
+                if cid in retrieved_cids_set:
+                    candidates_db[cid] = cand
+                    
     candidates = []
     features_list = []
     flag_reasons = {}
@@ -689,6 +705,8 @@ def run_interactive_pipeline(
             "breakdown": breakdown
         })
         
+    import gc
+    gc.collect()
     return final_ranked_candidates
 
 # ----------------------------------------------------
@@ -805,7 +823,6 @@ with tab1:
                         st.session_state.pipeline_results = run_interactive_pipeline(
                             jd_reqs, 
                             weights, 
-                            candidates_db, 
                             index, 
                             candidate_ids, 
                             sem_model, 
