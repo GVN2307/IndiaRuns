@@ -415,17 +415,26 @@ def download_large_file(url: str, destination: str):
         with opener.open(req) as response:
             html = response.read().decode('utf-8', errors='ignore')
             
-        confirm_token = None
-        match = re.search(r'confirm=([0-9A-Za-z_]+)', html)
-        if match:
-            confirm_token = match.group(1)
-        else:
-            match_input = re.search(r'name="confirm"\s+value="([0-9A-Za-z_]+)"', html)
-            if match_input:
-                confirm_token = match_input.group(1)
+        # Parse the form action and all hidden inputs dynamically
+        import urllib.parse
+        action_match = re.search(r'<form\s+[^>]*action="([^"]+)"', html)
+        if action_match:
+            action_url = action_match.group(1)
+            # Find all hidden inputs
+            inputs = re.findall(r'<input\s+[^>]*name="([^"]+)"\s+value="([^"]+)"', html)
+            inputs_swapped = re.findall(r'<input\s+[^>]*value="([^"]+)"\s+name="([^"]+)"', html)
+            
+            params = {}
+            for name, value in inputs:
+                params[name] = value
+            for value, name in inputs_swapped:
+                params[name] = value
                 
-        if confirm_token:
-            final_url = f"{gdrive_url}&confirm={confirm_token}"
+            if 'confirm' in params:
+                query_string = urllib.parse.urlencode(params)
+                final_url = f"{action_url}?{query_string}"
+            else:
+                final_url = gdrive_url
         else:
             final_url = gdrive_url
             
@@ -485,8 +494,24 @@ if not is_valid_index:
             with st.spinner("Downloading FAISS index (153MB)... This might take a minute."):
                 try:
                     download_large_file(download_url, INDEX_PATH)
-                    st.success("FAISS Index downloaded successfully! Re-running dashboard...")
-                    st.rerun()
+                    file_size = os.path.getsize(INDEX_PATH)
+                    if file_size > 100 * 1024 * 1024:
+                        st.success("FAISS Index downloaded successfully! Re-running dashboard...")
+                        st.rerun()
+                    else:
+                        if os.path.exists(INDEX_PATH):
+                            try:
+                                os.remove(INDEX_PATH)
+                            except Exception:
+                                pass
+                        st.error(f"⚠️ **Download Failed: The downloaded file is too small ({file_size / (1024*1024):.2f} MB).**")
+                        st.markdown("""
+                        This usually happens if Google Drive requires authentication (restricted link) or blocked the automated request.
+                        
+                        **To fix this:**
+                        1. Make sure your Google Drive file sharing setting is set to **"Anyone with the link"** (public).
+                        2. If Google Drive continues to block the download, try uploading the file to **Dropbox** (direct link with `dl=1`) or **OneDrive** instead, which do not throttle downloads.
+                        """)
                 except Exception as e:
                     st.error(f"Failed to download index: {e}")
         else:
