@@ -7,6 +7,16 @@ import re
 import numpy as np
 import pandas as pd
 import streamlit as st
+import textwrap
+
+# Auto-dedent all st.markdown calls to prevent indented HTML/markdown strings from rendering as code blocks
+_original_markdown = st.markdown
+def dedented_markdown(body, unsafe_allow_html=False):
+    if isinstance(body, str):
+        body = textwrap.dedent(body)
+    return _original_markdown(body, unsafe_allow_html=unsafe_allow_html)
+st.markdown = dedented_markdown
+
 import plotly.express as px
 import plotly.graph_objects as go
 
