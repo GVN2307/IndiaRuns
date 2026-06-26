@@ -3,17 +3,8 @@ from datetime import datetime
 from typing import Dict, Any, List
 from src.config import (
     MUST_HAVE_SKILLS, NICE_TO_HAVE_SKILLS, PRODUCT_COMPANIES, CONSULTING_COMPANIES, 
-    PROFICIENCY_WEIGHTS, REFERENCE_DATE, NON_TECH_TITLE_PATTERN
+    PROFICIENCY_WEIGHTS, REFERENCE_DATE, NON_TECH_TITLE_PATTERN, parse_date
 )
-
-def parse_date(date_str):
-    if not date_str:
-        return None
-    try:
-        # Expecting YYYY-MM-DD
-        return datetime.strptime(date_str.strip(), "%Y-%m-%d")
-    except (ValueError, TypeError):
-        return None
 
 def is_skill_match(skill_name: str, target_skills: set) -> bool:
     s_lower = skill_name.lower()

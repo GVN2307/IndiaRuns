@@ -46,6 +46,15 @@ We have successfully completed all Phase 1-6 updates to implement CrossEncoder r
 
 ---
 
+## Code Quality & Architecture Cleanups
+
+1. **Dynamic JD Parser**: Overhauled `src/jd_parser.py` to be fully dynamic. It now scans `.docx` files dynamically using `python-docx` (with text fallback), extracts experience ranges and locations via regular expressions, matches skills to must-have/nice-to-have categories, and builds the query embedding text dynamically from the parsed document.
+2. **Unified Date Parsing**: Centralized `parse_date` in `src/config.py` and imported it in both `src/features.py` and `src/reasoning_generator.py`, removing duplicate date parsing logic.
+3. **Cleaned Imports**: Moved `NON_TECH_TITLE_PATTERN` imports in `src/hybrid_aggregator.py` from inner-function level to module-level imports originating from configuration.
+4. **Location Bonus Design**: Documented that location bonuses are applied mutually exclusively: candidates located in Pune/Noida receive the +15% location bonus; otherwise, candidates willing to relocate receive the +10% relocation willingness bonus.
+
+---
+
 ## Validation & Verification Results
 
 1. **Submission Format**: 100% Valid and compliant with `validate_submission.py`.
@@ -60,14 +69,15 @@ We have successfully completed all Phase 1-6 updates to implement CrossEncoder r
    This prevents the exclusion of strong candidates who use semantic variations of key terms.
 5. **Execution Time (Performance Optimization)**:
    * **Model Loading Timeout**: Configured `HF_HUB_OFFLINE="1"` and `TRANSFORMERS_OFFLINE="1"` to bypass network timeouts in the offline environment, dropping load time from 3+ minutes to under 1 second.
-   * **CPU Core Thrashing**: Added `torch.set_num_threads(4)` at the top of the entry point script to prevent synchronization overhead on high-core (16-core) machines during candidate encoding.
-   * **Result**: Total execution time is **278.68 seconds (4.6 minutes)**, successfully meeting the **5-minute (300 seconds)** limit.
+   * **CPU Core Thrashing**: Set PyTorch threads dynamically based on CPU core count (`optimal_threads = min(12, cpu_cores - 4)` for high-core machines).
+   * **Result**: Total execution time is **92.94 seconds (1.5 minutes)**, successfully meeting the **5-minute (300 seconds)** limit with substantial safety margin.
 
 ### Timing Profile Summary
-* **JD Parsing**: 0.002 seconds
-* **First-Stage FAISS Search**: 36.764 seconds
-* **Candidate Streaming & Filtering**: 26.088 seconds
-* **Candidates Scoring (Model Inference)**: 215.630 seconds
-* **Aggregation, Sorting & Reasoning**: 0.066 seconds
-* **Total Runtime**: **278.682 seconds**
+* **JD Parsing**: 0.004 seconds
+* **First-Stage FAISS Search**: 7.874 seconds
+* **Candidate Streaming & Filtering**: 7.052 seconds
+* **Candidates Scoring (Model Inference)**: 77.756 seconds
+* **Aggregation, Sorting & Reasoning**: 0.133 seconds
+* **Total Runtime**: **92.940 seconds**
+
 

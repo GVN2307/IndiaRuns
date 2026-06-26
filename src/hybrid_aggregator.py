@@ -3,7 +3,8 @@ import logging
 from typing import Dict, Any, List, Tuple, Set
 from src.config import (
     SCORE_WEIGHTS, BEHAVIORAL_MULTIPLIERS, 
-    SHIPPER_WORDS, RETRIEVAL_KEYWORDS, EVALUATION_KEYWORDS
+    SHIPPER_WORDS, RETRIEVAL_KEYWORDS, EVALUATION_KEYWORDS,
+    NON_TECH_TITLE_PATTERN
 )
 
 logger = logging.getLogger("CVHunt.Aggregator")
@@ -149,7 +150,6 @@ def check_disqualifications(cand: Dict[str, Any], features: Dict[str, Any]) -> T
     career_feat = features.get("career_quality", {})
     is_non_tech = career_feat.get("is_non_tech", False)
     title_tech_count = 0
-    from src.features import NON_TECH_TITLE_PATTERN
     tech_title_patterns = re.compile(
         r"(software engineer|backend engineer|frontend engineer|data engineer|ml engineer|ai engineer|"
         r"machine learning engineer|data scientist|research scientist|nlp engineer|search engineer|"

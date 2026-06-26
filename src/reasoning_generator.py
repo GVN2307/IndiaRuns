@@ -1,17 +1,6 @@
 from typing import Dict, Any
 from datetime import datetime
-from src.config import JD_REASONING_KEYWORDS
-
-# Global Reference Date (for calculating active days)
-REFERENCE_DATE = "2026-06-16"
-
-def parse_date(date_str):
-    if not date_str:
-        return None
-    try:
-        return datetime.strptime(date_str.strip(), "%Y-%m-%d")
-    except (ValueError, TypeError):
-        return None
+from src.config import JD_REASONING_KEYWORDS, parse_date
 
 def generate_reasoning(breakdown: Dict[str, Any], rank: int = 50) -> str:
     """

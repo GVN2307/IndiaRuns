@@ -119,3 +119,13 @@ BEHAVIORAL_MULTIPLIERS = {
 # Global Reference Date (for calculating active days)
 # Matches the execution time of 2026-06-16
 REFERENCE_DATE = "2026-06-16"
+
+from datetime import datetime
+
+def parse_date(date_str: str):
+    if not date_str:
+        return None
+    try:
+        return datetime.strptime(date_str.strip(), "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return None

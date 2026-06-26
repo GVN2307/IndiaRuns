@@ -4,7 +4,12 @@ os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
 try:
     import torch
-    torch.set_num_threads(4)
+    cpu_cores = os.cpu_count() or 4
+    if cpu_cores > 6:
+        optimal_threads = min(12, cpu_cores - 4)
+    else:
+        optimal_threads = max(1, cpu_cores - 1)
+    torch.set_num_threads(optimal_threads)
 except ImportError:
     pass
 
