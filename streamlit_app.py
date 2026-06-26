@@ -382,8 +382,24 @@ def load_ml_models():
 # ----------------------------------------------------
 # 4.5 Self-Healing File Downloader
 # ----------------------------------------------------
-if not os.path.exists(INDEX_PATH):
-    st.warning("⚠️ **FAISS Index File (`models/faiss_index.bin`) is missing!**")
+is_valid_index = False
+if os.path.exists(INDEX_PATH):
+    try:
+        file_size = os.path.getsize(INDEX_PATH)
+        # The FAISS index is exactly 153,600,045 bytes. We'll check if it is > 100MB
+        if file_size > 100 * 1024 * 1024:
+            is_valid_index = True
+        else:
+            # File is too small (likely a downloaded HTML preview or error page)
+            try:
+                os.remove(INDEX_PATH)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+if not is_valid_index:
+    st.warning("⚠️ **FAISS Index File (`models/faiss_index.bin`) is missing or invalid!**")
     st.markdown("""
     Because the FAISS index is around 153MB, it is gitignored and not pushed to GitHub.
     
@@ -425,7 +441,19 @@ if not os.path.exists(INDEX_PATH):
 
 # Warm up data loading in background
 with st.spinner("Initializing models & database (100,000 candidates)... This may take 10-15s on first load."):
-    index, candidate_ids = load_faiss_and_ids()
+    try:
+        index, candidate_ids = load_faiss_and_ids()
+    except Exception as e:
+        # File could not be loaded by FAISS (e.g. corrupted/invalid format)
+        if os.path.exists(INDEX_PATH):
+            try:
+                os.remove(INDEX_PATH)
+            except Exception:
+                pass
+        st.error(f"⚠️ **Error loading FAISS Index:** {e}")
+        st.info("The downloaded index file may be corrupted (e.g. if the download link was not a direct download URL and returned an HTML page). The invalid file has been deleted. Please refresh/reload the page to try downloading again with a verified direct download link.")
+        st.stop()
+        
     candidates_db = load_candidates_db()
     sem_model, reranker = load_ml_models()
 
