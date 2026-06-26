@@ -10,3 +10,5 @@ python-docx
 markdown
 python-dotenv
 rank-bm25
+streamlit
+plotly
