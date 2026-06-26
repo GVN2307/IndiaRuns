@@ -21,11 +21,13 @@ We have successfully completed all Phase 1-6 updates to implement CrossEncoder r
 
 ### 3. Phase 3: Shipper Score
 * Added detection for system shipping experience using keywords: `"built"`, `"shipped"`, `"launched"`, `"deployed"`, `"production"`, `"users"`, `"latency"`, `"scale"`, `"ab testing"`, `"engagement"`.
-* Computed `shipper_score = matches / 10` and applied the bonus: `final_score += shipper_score * 8`.
+* **Fix**: To prevent score stuffing (e.g. candidate repeating the word "built" 10 times to inflate the score), the logic was updated to count **unique matches only** and **cap the bonus at 5 matches** max:
+  $$\text{final\_score} += \min(\text{unique\_shipper\_matches}, 5) \times 0.8$$
 
 ### 4. Phase 4: Retrieval & Evaluation Experience
-* Detected retrieval experience using: `"retrieval"`, `"ranking"`, `"search"`, `"vector"`, `"embedding"`, `"faiss"`, `"pinecone"`, `"milvus"`, `"qdrant"`, `"weaviate"`, `"reranking"`.
-* Detected evaluation experience using: `"ndcg"`, `"mrr"`, `"map"`, `"ab testing"`, `"evaluation"`, `"benchmark"`.
+* Centralized and mapped retrieval and evaluation experience keyword lists:
+  * `RETRIEVAL_KEYWORDS`: `"retrieval"`, `"ranking"`, `"search"`, `"vector"`, `"embedding"`, `"faiss"`, `"pinecone"`, `"milvus"`, `"qdrant"`, `"weaviate"`, `"reranking"`.
+  * `EVALUATION_KEYWORDS`: `"ndcg"`, `"mrr"`, `"map"`, `"ab testing"`, `"evaluation"`, `"benchmark"`.
 * Applied a `+15%` multiplier boost for retrieval experience, and a `+10%` multiplier boost for evaluation experience.
 
 ### 5. Phase 5: Add BM25
@@ -52,15 +54,20 @@ We have successfully completed all Phase 1-6 updates to implement CrossEncoder r
    * Ranks 11 to 50: mapped to the **70.0 – 95.0** range.
    * Ranks 51 to 100: mapped to the **30.0 – 70.0** range.
 3. **No Non-Tech / Disqualified Candidates**: Verified that all non-tech candidates, consulting-only candidates, and honeypots are set to score `0.0`.
-4. **Execution Time (Performance Optimization)**:
-   * **Issue**: HuggingFace library model checking caused network timeouts in the offline environment, leading to a 7.1-minute runtime.
-   * **Fix**: Added `os.environ["HF_HUB_OFFLINE"] = "1"` and `os.environ["TRANSFORMERS_OFFLINE"] = "1"` at the very top of `hackathon_rank.py` to prevent all internet lookup attempts and load model files directly from the local cache.
-   * **Result**: Total execution time dropped to **96.48 seconds (1.6 minutes)**, well below the **5-minute (300 seconds)** limit.
+4. **Graduated Gating Relaxation**: Relaxed the gating threshold from a hard reject at $<3$ must-haves to:
+   * $< 2$ must-haves: **Disqualified** (final score = 0.0)
+   * $< 3$ must-haves: final score $\times 0.15$
+   This prevents the exclusion of strong candidates who use semantic variations of key terms.
+5. **Execution Time (Performance Optimization)**:
+   * **Model Loading Timeout**: Configured `HF_HUB_OFFLINE="1"` and `TRANSFORMERS_OFFLINE="1"` to bypass network timeouts in the offline environment, dropping load time from 3+ minutes to under 1 second.
+   * **CPU Core Thrashing**: Added `torch.set_num_threads(4)` at the top of the entry point script to prevent synchronization overhead on high-core (16-core) machines during candidate encoding.
+   * **Result**: Total execution time is **278.68 seconds (4.6 minutes)**, successfully meeting the **5-minute (300 seconds)** limit.
 
 ### Timing Profile Summary
-* **JD Parsing**: 0.001 seconds
-* **First-Stage FAISS Search**: 10.676 seconds
-* **Candidate Streaming & Filtering**: 7.356 seconds
-* **Candidates Scoring (Model Inference)**: 78.258 seconds
-* **Aggregation, Sorting & Reasoning**: 0.043 seconds
-* **Total Runtime**: **96.480 seconds**
+* **JD Parsing**: 0.002 seconds
+* **First-Stage FAISS Search**: 36.764 seconds
+* **Candidate Streaming & Filtering**: 26.088 seconds
+* **Candidates Scoring (Model Inference)**: 215.630 seconds
+* **Aggregation, Sorting & Reasoning**: 0.066 seconds
+* **Total Runtime**: **278.682 seconds**
+
