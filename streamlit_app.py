@@ -382,6 +382,73 @@ def load_ml_models():
 # ----------------------------------------------------
 # 4.5 Self-Healing File Downloader
 # ----------------------------------------------------
+def extract_gdrive_id(url: str) -> str:
+    match = re.search(r'/file/d/([0-9A-Za-z_-]+)', url)
+    if match:
+        return match.group(1)
+    match = re.search(r'id=([0-9A-Za-z_-]+)', url)
+    if match:
+        return match.group(1)
+    return ""
+
+def download_large_file(url: str, destination: str):
+    import urllib.request
+    import http.cookiejar
+    import os
+    
+    is_gdrive = "drive.google.com" in url or "docs.google.com" in url
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    
+    if is_gdrive:
+        file_id = extract_gdrive_id(url)
+        if not file_id:
+            raise ValueError("Could not extract Google Drive File ID from the provided URL.")
+            
+        cookie_jar = http.cookiejar.CookieJar()
+        opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookie_jar))
+        
+        base_url = "https://docs.google.com/uc?export=download"
+        gdrive_url = f"{base_url}&id={file_id}"
+        
+        # First request to check for the virus scan confirmation token
+        req = urllib.request.Request(gdrive_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with opener.open(req) as response:
+            html = response.read().decode('utf-8', errors='ignore')
+            
+        confirm_token = None
+        match = re.search(r'confirm=([0-9A-Za-z_]+)', html)
+        if match:
+            confirm_token = match.group(1)
+        else:
+            match_input = re.search(r'name="confirm"\s+value="([0-9A-Za-z_]+)"', html)
+            if match_input:
+                confirm_token = match_input.group(1)
+                
+        if confirm_token:
+            final_url = f"{gdrive_url}&confirm={confirm_token}"
+        else:
+            final_url = gdrive_url
+            
+        # Second request to download the actual binary file
+        req_dl = urllib.request.Request(final_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with opener.open(req_dl) as response:
+            with open(destination, 'wb') as f:
+                while True:
+                    chunk = response.read(8192)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+    else:
+        # Standard download for Dropbox, OneDrive, etc.
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            with open(destination, 'wb') as f:
+                while True:
+                    chunk = response.read(8192)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+
 is_valid_index = False
 if os.path.exists(INDEX_PATH):
     try:
@@ -408,29 +475,16 @@ if not is_valid_index:
     
     **To deploy and run on Streamlit Cloud:**
     1. Upload your local `models/faiss_index.bin` file to any cloud storage (e.g. Dropbox, Google Drive, OneDrive, or GCP Storage).
-    2. Get a direct download link (for Dropbox, change `dl=0` to `dl=1` or `www` to `dl`).
-    3. Paste the URL below and click **Download FAISS Index** to download it directly into the app's container.
+    2. Paste your Google Drive sharing link (or Dropbox/OneDrive direct link) below.
+    3. Click **Download FAISS Index** to download it directly into the app's container.
     """)
     
-    download_url = st.text_input("Direct Download URL for faiss_index.bin", placeholder="https://dl.dropboxusercontent.com/s/...")
+    download_url = st.text_input("Cloud URL for faiss_index.bin (Google Drive sharing links are supported)", placeholder="https://drive.google.com/... or https://dl.dropboxusercontent.com/...")
     if st.button("📥 Download FAISS Index", use_container_width=True):
         if download_url:
             with st.spinner("Downloading FAISS index (153MB)... This might take a minute."):
                 try:
-                    import urllib.request
-                    # Create models dir if not exists
-                    os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
-                    req = urllib.request.Request(
-                        download_url, 
-                        headers={'User-Agent': 'Mozilla/5.0'}
-                    )
-                    with urllib.request.urlopen(req) as response:
-                        with open(INDEX_PATH, 'wb') as f:
-                            while True:
-                                chunk = response.read(8192)
-                                if not chunk:
-                                    break
-                                f.write(chunk)
+                    download_large_file(download_url, INDEX_PATH)
                     st.success("FAISS Index downloaded successfully! Re-running dashboard...")
                     st.rerun()
                 except Exception as e:
