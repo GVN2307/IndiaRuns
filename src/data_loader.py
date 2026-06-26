@@ -1,6 +1,9 @@
 import gzip
 import json
 import os
+import logging
+
+logger = logging.getLogger("CVHunt.DataLoader")
 
 def stream_candidates(filepath):
     """
@@ -20,9 +23,11 @@ def stream_candidates(filepath):
                     candidate = json.loads(line)
                     sanitized = sanitize_candidate(candidate)
                     if not sanitized or sanitized.get("candidate_id") == "UNKNOWN":
+                        logger.warning("Skipping candidate due to invalid data structure or UNKNOWN candidate_id")
                         continue
                     yield sanitized
                 except json.JSONDecodeError:
+                    logger.warning("Skipping candidate line due to JSON decoding error")
                     continue
     except Exception as e:
         print(f"Error reading file {filepath}: {e}")

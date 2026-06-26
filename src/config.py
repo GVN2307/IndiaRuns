@@ -87,6 +87,13 @@ NICE_TO_HAVE_SKILLS = [
     "distributed systems", "MLOps", "Kubeflow", "MLflow", "BentoML"
 ]
 
+# Centralized Keyword Lists
+BOOST_KEYWORDS = ["embeddings", "vector search", "retrieval", "ranking", "llm", "faiss", "pinecone"]
+SHIPPER_WORDS = ["built", "shipped", "launched", "deployed", "production", "users", "latency", "scale", "ab testing", "engagement"]
+RETRIEVAL_KEYWORDS = ["retrieval", "ranking", "search", "vector", "embedding", "faiss", "pinecone", "milvus", "qdrant", "weaviate", "reranking"]
+EVALUATION_KEYWORDS = ["ndcg", "mrr", "map", "ab testing", "evaluation", "benchmark"]
+JD_REASONING_KEYWORDS = ["embeddings", "vector search", "retrieval", "ranking", "LLM", "FAISS", "Pinecone", "Milvus", "Qdrant", "RAG", "Python", "evaluation frameworks"]
+
 # Weights and scoring parameters
 PROFICIENCY_WEIGHTS = {
     "beginner": 0.2,

@@ -1,5 +1,6 @@
 from typing import Dict, Any
 from datetime import datetime
+from src.config import JD_REASONING_KEYWORDS
 
 # Global Reference Date (for calculating active days)
 REFERENCE_DATE = "2026-06-16"
@@ -39,9 +40,8 @@ def generate_reasoning(breakdown: Dict[str, Any], rank: int = 50) -> str:
     skills_list = candidate.get("skills", [])
     skills_names = [s.get("name", "") for s in skills_list]
     
-    jd_keywords = ["embeddings", "vector search", "retrieval", "ranking", "LLM", "FAISS", "Pinecone", "Milvus", "Qdrant", "RAG", "Python", "evaluation frameworks"]
     matched_jd = []
-    for kw in jd_keywords:
+    for kw in JD_REASONING_KEYWORDS:
         if any(kw.lower() in s.lower() for s in skills_names):
             matched_jd.append(kw)
             

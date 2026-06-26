@@ -1,6 +1,12 @@
 import re
+import logging
 from typing import Dict, Any, List, Tuple, Set
-from src.config import SCORE_WEIGHTS, BEHAVIORAL_MULTIPLIERS
+from src.config import (
+    SCORE_WEIGHTS, BEHAVIORAL_MULTIPLIERS, 
+    SHIPPER_WORDS, RETRIEVAL_KEYWORDS, EVALUATION_KEYWORDS
+)
+
+logger = logging.getLogger("CVHunt.Aggregator")
 
 def aggregate_scores(semantic_score: float, structured_score: float, vector_score: float, bm25_score: float) -> float:
     """
@@ -213,6 +219,8 @@ def compute_final_ranking(
         
         # 3. Apply honeypot penalty (score becomes 0.0 if flagged)
         is_flagged = cid in flag_reasons
+        if is_flagged:
+            logger.warning(f"Candidate {cid} flagged as honeypot: {flag_reasons.get(cid, '')}")
         final_score = apply_honeypot_penalty(modified_score, is_flagged)
         
         # Hard cap for non-tech titles regardless of other signals
@@ -222,8 +230,10 @@ def compute_final_ranking(
             
         # 4. Enforce must-have skill gating on final score (graduated multipliers)
         must_have_count = features.get("skill_features", {}).get("must_have_count", 0)
-        if must_have_count < 3:
+        if must_have_count < 2:
             final_score = 0.0  # reject
+        elif must_have_count < 3:
+            final_score *= 0.15
         elif must_have_count < 6:
             final_score *= 0.3
         elif must_have_count < 9:
@@ -238,12 +248,12 @@ def compute_final_ranking(
         career_text = " ".join([job.get("description", "").lower() + " " + job.get("title", "").lower() for job in career])
         full_text_shipper = f"{summary} {career_text}"
         
-        shipper_words = ["built", "shipped", "launched", "deployed", "production", "users", "latency", "scale", "ab testing", "engagement"]
-        shipper_matches = sum(full_text_shipper.count(word) for word in shipper_words)
-        shipper_score = shipper_matches / 10.0
+        # Unique matches only to prevent padding/stuffing
+        shipper_matches = sum(1 for word in SHIPPER_WORDS if word in full_text_shipper)
+        shipper_capped = min(shipper_matches, 5)
         
-        # Apply shipper bonus: final_score += shipper_score * 8
-        final_score += shipper_score * 8.0
+        # Apply shipper bonus: final_score += shipper_capped * 0.8 (max 4.0 points)
+        final_score += shipper_capped * 0.8
         
         # Check retrieval and evaluation experience (Phase 4)
         skills_text = " ".join([s.get("name", "").lower() for s in cand.get("skills", [])])
@@ -252,11 +262,8 @@ def compute_final_ranking(
         career_descs = " ".join([job.get("description", "").lower() for job in career])
         full_text_boost = f"{skills_text} {headline} {summary} {career_titles} {career_descs}"
         
-        retrieval_keywords = ["retrieval", "ranking", "search", "vector", "embedding", "faiss", "pinecone", "milvus", "qdrant", "weaviate", "reranking"]
-        evaluation_keywords = ["ndcg", "mrr", "map", "ab testing", "evaluation", "benchmark"]
-        
-        has_retrieval = any(kw in full_text_boost for kw in retrieval_keywords)
-        has_evaluation = any(kw in full_text_boost for kw in evaluation_keywords)
+        has_retrieval = any(kw in full_text_boost for kw in RETRIEVAL_KEYWORDS)
+        has_evaluation = any(kw in full_text_boost for kw in EVALUATION_KEYWORDS)
         
         if has_retrieval:
             final_score *= 1.15
@@ -271,6 +278,7 @@ def compute_final_ranking(
         # 5. Check hard disqualifications at the ABSOLUTE LAST step (score becomes 0.0 if disqualified)
         is_disq, disq_reason = check_disqualifications(cand, features)
         if is_disq:
+            logger.warning(f"Candidate {cid} disqualified: {disq_reason}")
             final_score = 0.0
             
         # Keep track of individual scores for reasoning generation later

@@ -2,6 +2,12 @@ import os
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 
+try:
+    import torch
+    torch.set_num_threads(4)
+except ImportError:
+    pass
+
 import argparse
 import sys
 import time
@@ -13,7 +19,11 @@ import numpy as np
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(BASE_DIR)
 
-from src.config import SUBMISSION_PATH, SURROGATE_PATH, ID_MAP_PATH, INDEX_PATH
+import logging
+logging.basicConfig(level=logging.WARNING, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger("CVHunt")
+
+from src.config import SUBMISSION_PATH, SURROGATE_PATH, ID_MAP_PATH, INDEX_PATH, BOOST_KEYWORDS
 from src.data_loader import stream_candidates
 from src.jd_parser import parse_jd
 from src.features import extract_features
@@ -161,7 +171,6 @@ def main():
         print(f"Warning: Failed to load all-mpnet-base-v2: {e}")
         
     # Apply keyword boost to semantic scores
-    boost_keywords = ["embeddings", "vector search", "retrieval", "ranking", "llm", "faiss", "pinecone"]
     for c in candidates:
         cid = c["candidate_id"]
         score = semantic_scores.get(cid, 0.0)
@@ -170,7 +179,7 @@ def main():
             skills_list = c.get("skills", [])
             skills_text = " ".join([s.get("name", "").lower() for s in skills_list])
             full_text = f"{profile.get('headline', '')} {profile.get('summary', '')} {skills_text}".lower()
-            has_jd_term = any(kw in full_text for kw in boost_keywords)
+            has_jd_term = any(kw in full_text for kw in BOOST_KEYWORDS)
             boosted_score = score + 12.0 if has_jd_term else score
             semantic_scores[cid] = min(100.0, float(boosted_score))
             
