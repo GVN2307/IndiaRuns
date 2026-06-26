@@ -21,7 +21,7 @@ def is_skill_match(skill_name: str, target_skills: set) -> bool:
                 idx = s_lower.find(target, idx + 1)
     return False
 
-def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
+def extract_features(candidate: Dict[str, Any], jd_skills: Tuple[List[str], List[str]] = None) -> Dict[str, Any]:
     """
     Extracts all structured features from a candidate record.
     """
@@ -41,8 +41,10 @@ def extract_features(candidate: Dict[str, Any]) -> Dict[str, Any]:
     matched_skills_count = 0
     
     # Convert lists to sets for fast lookup
-    must_have_set = {s.lower() for s in MUST_HAVE_SKILLS}
-    nice_to_have_set = {s.lower() for s in NICE_TO_HAVE_SKILLS}
+    must_skills = jd_skills[0] if jd_skills else MUST_HAVE_SKILLS
+    nice_skills = jd_skills[1] if jd_skills else NICE_TO_HAVE_SKILLS
+    must_have_set = {s.lower() for s in must_skills}
+    nice_to_have_set = {s.lower() for s in nice_skills}
     
     for s in skills:
         s_name = s.get("name", "").lower()

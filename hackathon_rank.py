@@ -133,7 +133,7 @@ def main():
             continue
             
         candidates.append(cand)
-        feats = extract_features(cand)
+        feats = extract_features(cand, jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills))
         features_list.append(feats)
         
         is_flagged, reason = run_honeypot_checks(cand)
@@ -263,7 +263,8 @@ def main():
         flag_reasons=flag_reasons,
         features_list=features_list,
         bm25_scores=bm25_scores,
-        cross_encoder_scores=cross_encoder_scores
+        cross_encoder_scores=cross_encoder_scores,
+        jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills)
     )
     timings["Aggregation & Sorting"] = time.time() - p_start
     print(f"Top candidate score: {ranked_results[0][1]:.3f} (ID: {ranked_results[0][0]})")

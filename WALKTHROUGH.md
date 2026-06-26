@@ -48,7 +48,7 @@ We have successfully completed all Phase 1-6 updates to implement CrossEncoder r
 
 ## Code Quality & Architecture Cleanups
 
-1. **Dynamic JD Parser**: Overhauled `src/jd_parser.py` to be fully dynamic. It now scans `.docx` files dynamically using `python-docx` (with text fallback), extracts experience ranges and locations via regular expressions, matches skills to must-have/nice-to-have categories, and builds the query embedding text dynamically from the parsed document.
+1. **Dynamic JD Parser**: Overhauled `src/jd_parser.py` to be fully dynamic. Instead of relying solely on a pre-configured skill vocabulary, it dynamically extracts skills (proper nouns, acronyms, mixed-case words, list items, and parenthesized terms) directly from the text within identified job description sections, merging them with vocab matches for complete coverage. It also scans `.docx` files dynamically using `python-docx` (with text fallback), extracts experience ranges and locations via regular expressions, and builds the query embedding text dynamically.
 2. **Unified Date Parsing**: Centralized `parse_date` in `src/config.py` and imported it in both `src/features.py` and `src/reasoning_generator.py`, removing duplicate date parsing logic.
 3. **Cleaned Imports**: Moved `NON_TECH_TITLE_PATTERN` imports in `src/hybrid_aggregator.py` from inner-function level to module-level imports originating from configuration.
 4. **Location Bonus Design**: Documented that location bonuses are applied mutually exclusively: candidates located in Pune/Noida receive the +15% location bonus; otherwise, candidates willing to relocate receive the +10% relocation willingness bonus.

@@ -185,7 +185,8 @@ def compute_final_ranking(
     flag_reasons: Dict[str, str],
     features_list: List[Dict[str, Any]] = None,
     bm25_scores: Dict[str, float] = None,
-    cross_encoder_scores: Dict[str, float] = None
+    cross_encoder_scores: Dict[str, float] = None,
+    jd_skills: Tuple[List[str], List[str]] = None
 ) -> List[Tuple[str, float, Dict[str, Any]]]:
     """
     Runs the full aggregation pipeline for all candidates.
@@ -210,7 +211,7 @@ def compute_final_ranking(
             features = features_list[idx]
         else:
             from src.features import extract_features
-            features = extract_features(cand)
+            features = extract_features(cand, jd_skills=jd_skills)
             
         beh_feat = features.get("behavioral_features", {})
         

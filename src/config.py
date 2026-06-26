@@ -87,6 +87,18 @@ NICE_TO_HAVE_SKILLS = [
     "distributed systems", "MLOps", "Kubeflow", "MLflow", "BentoML"
 ]
 
+# Comprehensive Skill Vocabulary for Dynamic Parsing
+ALL_TECH_VOCAB = [
+    "python", "java", "c++", "c#", "rust", "go", "golang", "javascript", "typescript", "ruby", "php", "swift", "kotlin", "scala", "r", "julia", "shell", "bash",
+    "pytorch", "tensorflow", "keras", "scikit-learn", "sklearn", "jax", "mxnet", "opencv", "nltk", "spacy", "huggingface", "transformers", "sentence-transformers", "diffusers", "timm", "accelerate", "deepspeed",
+    "embeddings", "vector search", "retrieval", "ranking", "learning-to-rank", "llm", "llms", "large language models", "fine-tuning", "rag", "retrieval-augmented generation", "lora", "qlora", "peft", "rlhf", "dpo", "prompt engineering",
+    "faiss", "pinecone", "weaviate", "qdrant", "milvus", "chromadb", "opensearch", "elasticsearch", "solr", "redis", "mongodb", "cassandra", "dynamodb", "postgres", "postgresql", "mysql", "sqlite", "neo4j",
+    "ndcg", "mrr", "map", "a/b testing", "ab testing", "evaluation", "benchmark", "roc-auc", "f1 score", "precision", "recall",
+    "docker", "kubernetes", "k8s", "aws", "gcp", "azure", "terraform", "ansible", "jenkins", "github actions", "mlflow", "kubeflow", "bentoml", "sre", "ci/cd",
+    "spark", "pyspark", "hadoop", "flink", "kafka", "rabbitmq", "dbt", "dataform", "airflow", "prefect", "dagster", "snowflake", "bigquery", "redshift",
+    "xgboost", "lightgbm", "peft", "distributed systems", "mlops"
+]
+
 # Centralized Keyword Lists
 BOOST_KEYWORDS = ["embeddings", "vector search", "retrieval", "ranking", "llm", "faiss", "pinecone"]
 SHIPPER_WORDS = ["built", "shipped", "launched", "deployed", "production", "users", "latency", "scale", "ab testing", "engagement"]
