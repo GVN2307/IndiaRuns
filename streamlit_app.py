@@ -379,6 +379,50 @@ def load_ml_models():
     reranker = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2", device='cpu', max_length=512)
     return sem_model, reranker
 
+# ----------------------------------------------------
+# 4.5 Self-Healing File Downloader
+# ----------------------------------------------------
+if not os.path.exists(INDEX_PATH):
+    st.warning("⚠️ **FAISS Index File (`models/faiss_index.bin`) is missing!**")
+    st.markdown("""
+    Because the FAISS index is around 153MB, it is gitignored and not pushed to GitHub.
+    
+    **To run this locally:**
+    You already have the index in your local `models/` directory, so running `streamlit run streamlit_app.py` locally will work out-of-the-box!
+    
+    **To deploy and run on Streamlit Cloud:**
+    1. Upload your local `models/faiss_index.bin` file to any cloud storage (e.g. Dropbox, Google Drive, OneDrive, or GCP Storage).
+    2. Get a direct download link (for Dropbox, change `dl=0` to `dl=1` or `www` to `dl`).
+    3. Paste the URL below and click **Download FAISS Index** to download it directly into the app's container.
+    """)
+    
+    download_url = st.text_input("Direct Download URL for faiss_index.bin", placeholder="https://dl.dropboxusercontent.com/s/...")
+    if st.button("📥 Download FAISS Index", use_container_width=True):
+        if download_url:
+            with st.spinner("Downloading FAISS index (153MB)... This might take a minute."):
+                try:
+                    import urllib.request
+                    # Create models dir if not exists
+                    os.makedirs(os.path.dirname(INDEX_PATH), exist_ok=True)
+                    req = urllib.request.Request(
+                        download_url, 
+                        headers={'User-Agent': 'Mozilla/5.0'}
+                    )
+                    with urllib.request.urlopen(req) as response:
+                        with open(INDEX_PATH, 'wb') as f:
+                            while True:
+                                chunk = response.read(8192)
+                                if not chunk:
+                                    break
+                                f.write(chunk)
+                    st.success("FAISS Index downloaded successfully! Re-running dashboard...")
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to download index: {e}")
+        else:
+            st.error("Please enter a valid URL.")
+    st.stop()
+
 # Warm up data loading in background
 with st.spinner("Initializing models & database (100,000 candidates)... This may take 10-15s on first load."):
     index, candidate_ids = load_faiss_and_ids()
