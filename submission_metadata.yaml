@@ -1,17 +1,16 @@
-team_name: "Antigravity"
+team_name: "Undercover Boys"
 
 primary_contact:
-  name: "Antigravity"
-  email: "antigravity@gemini.com"
-  phone: "+91-9999999999"
+  name: "Veeranarayana Gorantla"
+  email: "veeranarayana1gorantla@gmail.com"
+  phone: "+91-9985230407"
 
 team_members:
-  - name: "Antigravity AI"
-    email: "antigravity@gemini.com"
-    role: "ML Engineer"
+  - name: "Kandi Harish Reddy"
+    email: "kandiharishreddy@gmail.com"
+    role: "Student"
 
-github_repo: "https://github.com/GVN2307/OnlineCreativeWriting"
-sandbox_link: "https://huggingface.co/spaces/antigravity/redrob-ranker"
+github_repo: "https://github.com/GVN2307/IndiaRuns"
 
 reproduce_command: "python hackathon_rank.py --candidates data/candidates.jsonl.gz --jd data/job_description.md --output output/submission.csv --embeddings models/candidate_embeddings.npy --index models/faiss_index.bin"
 
@@ -28,8 +27,6 @@ compute:
 
 ai_tools_used:
   - "Gemini"
-  - "Cursor"
-
 ai_usage_summary: |
   Used Gemini for code synthesis, architecture planning, and structured ranking logic. No candidate data was shared with external LLMs during ranking.
 
