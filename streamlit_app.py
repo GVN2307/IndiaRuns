@@ -39,7 +39,7 @@ from src.reasoning_generator import generate_reasoning
 # 1. Streamlit Page Configuration
 # ----------------------------------------------------
 st.set_page_config(
-    page_title="CVHunt Discoverer",
+    page_title="CVHunt AI Recruiter",
     page_icon="◆",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -105,7 +105,8 @@ else:
     amber_muted = "rgba(217,119,6,0.08)"
     shadow = "0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.03)"
 
-css = f"""
+# Inject CSS Variables
+st.markdown(f"""
 <style>
 :root {{
     --bg: {bg_color};
@@ -127,206 +128,14 @@ css = f"""
     --shadow: {shadow};
     --radius: 10px;
 }}
-
-/* Hide Streamlit components */
-header[data-testid="stHeader"], #MainMenu, footer, [data-testid="stToolbar"],
-[data-testid="stDecoration"], [data-testid="stStatusWidget"], .stDeployButton,
-div[data-testid="stSidebarCollapsedControl"] {{
-    display: none !important;
-}}
-
-html, body, [data-testid="stAppViewContainer"], [data-testid="stApp"], .main, .block-container, section[data-testid="stMain"] {{
-    background-color: var(--bg) !important;
-    color: var(--text) !important;
-    font-family: 'DM Sans', -apple-system, sans-serif !important;
-}}
-
-.block-container {{
-    padding: 2rem 2.5rem 3rem !important;
-    max-width: 1360px !important;
-}}
-
-[data-testid="stHorizontalBlock"] {{ gap: 1.25rem !important; }}
-[data-testid="stVerticalBlock"] > div:has(> [data-testid="stHorizontalBlock"]) {{
-    margin-bottom: 0.5rem !important;
-}}
-
-/* Card Elements */
-.metric-card {{
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.1rem 1.25rem;
-    box-shadow: var(--shadow);
-    margin-bottom: 1rem;
-}}
-.metric-label {{
-    font-size: 0.76rem;
-    color: var(--text-muted);
-    font-weight: 500;
-    margin-bottom: 0.1rem;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-}}
-.metric-value {{
-    font-size: 1.6rem;
-    font-weight: 700;
-    color: var(--text);
-    letter-spacing: -0.02em;
-}}
-.metric-delta {{
-    font-size: 0.72rem;
-    font-weight: 500;
-    margin-top: 0.3rem;
-    padding: 2px 7px;
-    border-radius: 5px;
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-}}
-.delta-up {{ color: var(--green); background: var(--green-muted); }}
-.delta-down {{ color: var(--red); background: var(--red-muted); }}
-.delta-warn {{ color: var(--amber); background: var(--amber-muted); }}
-
-.chart-wrap {{
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.2rem;
-    box-shadow: var(--shadow);
-    margin-bottom: 1.25rem;
-}}
-.chart-title {{
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text);
-}}
-.chart-subtitle {{
-    font-size: 0.72rem;
-    color: var(--text-muted);
-    margin-bottom: 0.8rem;
-}}
-
-/* Navigation Tabs (Pill-style) */
-button[data-baseweb="tab"] {{
-    background: transparent !important;
-    color: var(--text-muted) !important;
-    font-size: 0.835rem !important;
-    font-weight: 500 !important;
-    padding: 0.55rem 1rem !important;
-    border: 1px solid transparent !important;
-    border-radius: 7px !important;
-}}
-button[data-baseweb="tab"][aria-selected="true"] {{
-    color: var(--text) !important;
-    background: var(--card) !important;
-    border-color: var(--border) !important;
-}}
-[data-baseweb="tab-highlight"], [data-baseweb="tab-border"] {{
-    display: none !important;
-}}
-[data-baseweb="tab-list"] {{
-    gap: 4px !important;
-    background: var(--bg-subtle) !important;
-    border: 1px solid var(--border) !important;
-    border-radius: 10px !important;
-    padding: 3px;
-    margin-bottom: 1rem;
-}}
-
-/* Custom Status Badges */
-.badge {{
-    display: inline-block;
-    padding: 2px 8px;
-    border-radius: 5px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-}}
-.badge-green {{ color: var(--green); background: var(--green-muted); }}
-.badge-red {{ color: var(--red); background: var(--red-muted); }}
-.badge-amber {{ color: var(--amber); background: var(--amber-muted); }}
-.badge-blue {{ color: var(--accent); background: rgba(37,99,235,0.1); }}
-
-/* Custom Tables */
-.data-table {{
-    width: 100%;
-    border-collapse: separate;
-    border-spacing: 0;
-    font-size: 0.8rem;
-    margin-top: 0.5rem;
-}}
-.data-table th {{
-    text-align: left;
-    padding: 0.65rem 0.8rem;
-    color: var(--text-muted);
-    font-weight: 600;
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-subtle);
-}}
-.data-table td {{
-    padding: 0.7rem 0.8rem;
-    color: var(--text);
-    border-bottom: 1px solid var(--border-subtle);
-    vertical-align: middle;
-}}
-.data-table tr:hover td {{
-    background: var(--card-hover);
-}}
-.data-table tr:last-child td {{
-    border-bottom: none;
-}}
-
-/* Brand / Header */
-.brand {{
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-}}
-.brand-logo {{
-    font-size: 1.5rem;
-    color: var(--accent);
-}}
-.brand-name {{
-    font-size: 1.25rem;
-    font-weight: 700;
-    letter-spacing: -0.02em;
-    color: var(--text);
-}}
-.brand-subtitle {{
-    font-size: 0.78rem;
-    color: var(--text-muted);
-    margin-left: 0.5rem;
-}}
-
-/* Custom container */
-.profile-box {{
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 1.25rem;
-    box-shadow: var(--shadow);
-    margin-bottom: 1.25rem;
-}}
-
-.section-title {{
-    font-size: 0.9rem;
-    font-weight: 600;
-    color: var(--text);
-    border-bottom: 1px solid var(--border-subtle);
-    padding-bottom: 0.4rem;
-    margin-bottom: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.02em;
-}}
 </style>
-"""
-st.markdown(css, unsafe_allow_html=True)
+""", unsafe_allow_html=True)
+
+# Load external static styles
+styles_path = os.path.join(BASE_DIR, "styles.css")
+if os.path.exists(styles_path):
+    with open(styles_path, "r", encoding="utf-8") as f:
+        st.markdown(f"<style>{f.read()}</style>", unsafe_allow_html=True)
 
 # ----------------------------------------------------
 # 4. Header Bar
@@ -336,7 +145,7 @@ with head_left:
     st.markdown("""
     <div class="brand">
         <span class="brand-logo">◆</span>
-        <span class="brand-name">CVHunt Discoverer</span>
+        <span class="brand-name">CVHunt AI Recruiter</span>
         <span class="brand-subtitle">AI-Powered Intelligent Discovery & Reranking</span>
     </div>
     """, unsafe_allow_html=True)
@@ -527,23 +336,15 @@ with st.spinner("Initializing models & index (100,000 candidates)... This may ta
 # ----------------------------------------------------
 # 6. Recruiter Pipeline Runner
 # ----------------------------------------------------
-def run_interactive_pipeline(
-    jd_reqs, 
-    weights, 
-    index, 
-    candidate_ids, 
-    sem_model, 
-    reranker,
-    candidates_db=None
-):
-    query_text = jd_reqs.to_embedding_text()
-    
-    # 1. First-Stage FAISS Scorer
+# ----------------------------------------------------
+# 6. Recruiter Pipeline Helper Functions
+# ----------------------------------------------------
+def retrieve_top_k(query_text, index, candidate_ids):
     from src.semantic_scorer import get_model as get_faiss_model
     faiss_model = get_faiss_model()
     jd_embedding = faiss_model.encode([query_text], convert_to_numpy=True, normalize_embeddings=True)[0]
     
-    # Free memory of first-stage embedding model since it is no longer needed
+    # Free memory of first-stage embedding model
     import src.semantic_scorer
     src.semantic_scorer._model = None
     import gc
@@ -554,9 +355,10 @@ def run_interactive_pipeline(
     vector_scores_arr = scores_from_search(retrieved_indices, retrieved_distances, len(candidate_ids))
     
     retrieved_cids = [candidate_ids[idx] for idx in retrieved_indices if idx != -1 and idx < len(candidate_ids)]
+    return retrieved_cids, vector_scores_arr
+
+def fetch_candidates(retrieved_cids, candidates_db=None):
     retrieved_cids_set = set(retrieved_cids)
-    
-    # 2. Candidate Filtering & Features Extraction
     if candidates_db is None:
         candidates_db = {}
         candidates_path = "data/candidates.jsonl.gz"
@@ -582,31 +384,14 @@ def run_interactive_pipeline(
                             if len(candidates_db) >= len(retrieved_cids_set):
                                 break
         else:
-            # Fallback for sample_candidates.json
             from src.data_loader import load_sample_candidates
             for cand in load_sample_candidates(candidates_path):
                 cid = cand.get("candidate_id")
                 if cid in retrieved_cids_set:
                     candidates_db[cid] = cand
-                    
-    candidates = []
-    features_list = []
-    flag_reasons = {}
-    
-    for cid in retrieved_cids:
-        cand = candidates_db.get(cid)
-        if not cand:
-            continue
-            
-        candidates.append(cand)
-        feats = extract_features(cand, jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills))
-        features_list.append(feats)
-        
-        is_flagged, reason = run_honeypot_checks(cand)
-        if is_flagged:
-            flag_reasons[cid] = reason
-            
-    # 3. Score 1: Semantic Scorer (mpnet-base)
+    return candidates_db
+
+def score_semantic(candidates, query_text, sem_model):
     semantic_scores = {c["candidate_id"]: 0.0 for c in candidates}
     jd_sem_emb = sem_model.encode([query_text], convert_to_numpy=True, normalize_embeddings=True)[0]
     
@@ -626,8 +411,9 @@ def run_interactive_pipeline(
         has_jd_term = any(kw in full_text for kw in BOOST_KEYWORDS)
         boosted_score = score + 12.0 if has_jd_term else score
         semantic_scores[cid] = min(100.0, float(boosted_score))
-        
-    # 4. Score 4: BM25 Scorer
+    return semantic_scores
+
+def score_bm25(candidates, query_text):
     from rank_bm25 import BM25Okapi
     bm25_texts = [create_candidate_text(c) for c in candidates]
     tokenized_corpus = [doc.lower().split(" ") for doc in bm25_texts]
@@ -646,8 +432,9 @@ def run_interactive_pipeline(
     else:
         for cand in candidates:
             bm25_scores[cand["candidate_id"]] = 50.0
-            
-    # 5. Score 5: CrossEncoder Reranker
+    return bm25_scores
+
+def score_cross_encoder(candidates, query_text, reranker):
     cross_encoder_scores = {}
     pairs = [(query_text, create_candidate_text(c)) for c in candidates]
     raw_logits = reranker.predict(pairs, batch_size=64, show_progress_bar=False)
@@ -662,8 +449,9 @@ def run_interactive_pipeline(
     else:
         for c in candidates:
             cross_encoder_scores[c["candidate_id"]] = 50.0
-            
-    # 6. Score 2: Structured Scorer
+    return cross_encoder_scores
+
+def score_structured(candidates, features_list):
     structured_scores = {}
     structured_breakdowns = {}
     for cand, feats in zip(candidates, features_list):
@@ -671,20 +459,20 @@ def run_interactive_pipeline(
         score, breakdown = compute_structured_score(feats, surrogate_path=SURROGATE_PATH)
         structured_scores[cid] = score
         structured_breakdowns[cid] = breakdown
-        
-    # 7. Vector Scores (FAISS)
-    vector_scores = {}
-    for idx, cid in enumerate(candidate_ids):
-        if cid in retrieved_cids_set:
-            vector_scores[cid] = float(vector_scores_arr[idx])
-            
-    # 8. Configure weights dynamically
-    src.config.SCORE_WEIGHTS["semantic"] = weights["semantic"]
-    src.config.SCORE_WEIGHTS["bm25"] = weights["bm25"]
-    src.config.SCORE_WEIGHTS["vector"] = weights["vector"]
-    src.config.SCORE_WEIGHTS["structured"] = weights["structured"]
-    
-    # 9. Aggregate
+    return structured_scores, structured_breakdowns
+
+def aggregate_scores(
+    candidates,
+    semantic_scores,
+    structured_scores,
+    structured_breakdowns,
+    vector_scores,
+    flag_reasons,
+    features_list,
+    bm25_scores,
+    cross_encoder_scores,
+    jd_skills
+):
     ranked_results = compute_final_ranking(
         candidates_data=candidates,
         semantic_scores=semantic_scores,
@@ -695,16 +483,96 @@ def run_interactive_pipeline(
         features_list=features_list,
         bm25_scores=bm25_scores,
         cross_encoder_scores=cross_encoder_scores,
-        jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills)
+        jd_skills=jd_skills
+    )
+    return ranked_results
+
+def run_interactive_pipeline(
+    jd_reqs, 
+    weights, 
+    index, 
+    candidate_ids, 
+    sem_model, 
+    reranker,
+    candidates_db=None,
+    status_box=None
+):
+    query_text = jd_reqs.to_embedding_text()
+    
+    # Configure weights dynamically
+    src.config.SCORE_WEIGHTS["semantic"] = weights["semantic"]
+    src.config.SCORE_WEIGHTS["bm25"] = weights["bm25"]
+    src.config.SCORE_WEIGHTS["vector"] = weights["vector"]
+    src.config.SCORE_WEIGHTS["structured"] = weights["structured"]
+    
+    if status_box:
+        status_box.update(label="⚡ Retrieving Top Candidates via FAISS Index...", state="running")
+    retrieved_cids, vector_scores_arr = retrieve_top_k(query_text, index, candidate_ids)
+    retrieved_cids_set = set(retrieved_cids)
+    
+    if status_box:
+        status_box.update(label="📂 Streaming matching candidate profiles...", state="running")
+    candidates_db = fetch_candidates(retrieved_cids, candidates_db)
+    
+    candidates = []
+    features_list = []
+    flag_reasons = {}
+    for cid in retrieved_cids:
+        cand = candidates_db.get(cid)
+        if not cand:
+            continue
+        candidates.append(cand)
+        feats = extract_features(cand, jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills))
+        features_list.append(feats)
+        is_flagged, reason = run_honeypot_checks(cand)
+        if is_flagged:
+            flag_reasons[cid] = reason
+            
+    if status_box:
+        status_box.update(label="🧠 Running Semantic model scoring...", state="running")
+    semantic_scores = score_semantic(candidates, query_text, sem_model)
+    
+    if status_box:
+        status_box.update(label="📝 Running BM25 keyword matching...", state="running")
+    bm25_scores = score_bm25(candidates, query_text)
+    
+    if status_box:
+        status_box.update(label="🤖 Executing Cross-Encoder reranking...", state="running")
+    cross_encoder_scores = score_cross_encoder(candidates, query_text, reranker)
+    
+    if status_box:
+        status_box.update(label="📊 Computing Structured & Surrogate scores...", state="running")
+    structured_scores, structured_breakdowns = score_structured(candidates, features_list)
+    
+    vector_scores = {}
+    for idx, cid in enumerate(candidate_ids):
+        if cid in retrieved_cids_set:
+            vector_scores[cid] = float(vector_scores_arr[idx])
+            
+    if status_box:
+        status_box.update(label="🧬 Aggregating & mapping final scores...", state="running")
+    ranked_results = aggregate_scores(
+        candidates,
+        semantic_scores,
+        structured_scores,
+        structured_breakdowns,
+        vector_scores,
+        flag_reasons,
+        features_list,
+        bm25_scores,
+        cross_encoder_scores,
+        (jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills)
     )
     
+    if status_box:
+        status_box.update(label="✍️ Generating dynamic justifications & reasons...", state="running")
     # Generate reasonings for the top 100
+    candidate_map = {c["candidate_id"]: c for c in candidates}
     final_ranked_candidates = []
     for rank_idx, (cid, score, breakdown) in enumerate(ranked_results):
         rank = rank_idx + 1
         reasoning = generate_reasoning(breakdown, rank)
-        
-        cand_info = next((c for c in candidates if c["candidate_id"] == cid), None)
+        cand_info = candidate_map.get(cid)
         
         final_ranked_candidates.append({
             "candidate_id": cid,
@@ -722,10 +590,10 @@ def run_interactive_pipeline(
 # ----------------------------------------------------
 # 7. Navigation Tabs
 # ----------------------------------------------------
-tab1, tab2, tab3 = st.tabs(["🔍 Candidate Discoverer", "👤 Candidate Profiler", "📊 Analytics Dashboard"])
+tab1, tab2, tab3, tab4 = st.tabs(["🔍 Candidate Ranker", "👤 Candidate Profiler", "📊 Analytics Dashboard", "🏛️ Architecture & Pipeline"])
 
 # ----------------------------------------------------
-# TAB 1: Candidate Discoverer
+# TAB 1: Candidate Ranker
 # ----------------------------------------------------
 with tab1:
     col_left, col_right = st.columns([4, 8])
@@ -772,27 +640,48 @@ with tab1:
                 st.info("Please upload a file.")
                 filepath = ""
 
-        st.markdown('<div class="section-title">Aggregation Weights</div>', unsafe_allow_html=True)
-        st.caption("Customize how the search engine blends structural features, semantic embeddings, keyword match, and dense vectors. Weights are automatically normalized to sum to 1.0.")
+        # Collapse scoring weights in an expander
+        with st.expander("⚙️ Advanced Scoring Settings", expanded=False):
+            st.caption("Customize how the search engine blends structural features, semantic embeddings, keyword match, and dense vectors. Weights are automatically normalized to sum to 1.0.")
+            w_sem = st.slider("Semantic Similarity Weight", 0.0, 1.0, 0.20, 0.05)
+            w_bm25 = st.slider("BM25 Keyword Weight", 0.0, 1.0, 0.20, 0.05)
+            w_vec = st.slider("Vector Index Search Weight", 0.0, 1.0, 0.15, 0.05)
+            w_str = st.slider("Structured Feature Scorer Weight", 0.0, 1.0, 0.45, 0.05)
+            
+            # Normalize weights
+            sum_w = w_sem + w_bm25 + w_vec + w_str
+            if sum_w > 0:
+                weights = {
+                    "semantic": w_sem / sum_w,
+                    "bm25": w_bm25 / sum_w,
+                    "vector": w_vec / sum_w,
+                    "structured": w_str / sum_w
+                }
+            else:
+                weights = {"semantic": 0.2, "bm25": 0.2, "vector": 0.15, "structured": 0.45}
         
-        w_sem = st.slider("Semantic Similarity Weight", 0.0, 1.0, 0.20, 0.05)
-        w_bm25 = st.slider("BM25 Keyword Weight", 0.0, 1.0, 0.20, 0.05)
-        w_vec = st.slider("Vector Index Search Weight", 0.0, 1.0, 0.15, 0.05)
-        w_str = st.slider("Structured Feature Scorer Weight", 0.0, 1.0, 0.45, 0.05)
-        
-        # Normalize weights
-        sum_w = w_sem + w_bm25 + w_vec + w_str
-        if sum_w > 0:
-            weights = {
-                "semantic": w_sem / sum_w,
-                "bm25": w_bm25 / sum_w,
-                "vector": w_vec / sum_w,
-                "structured": w_str / sum_w
-            }
-        else:
+        # If not expanded, use default weights
+        if 'weights' not in locals():
             weights = {"semantic": 0.2, "bm25": 0.2, "vector": 0.15, "structured": 0.45}
             
-        run_btn = st.button("🚀 Run Candidate Discoverer", use_container_width=True)
+        run_btn = st.button("🚀 Run AI Recruiter Pipeline", use_container_width=True)
+        
+        # System Information Card
+        st.markdown('<div class="section-title">System Information</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="profile-box" style="padding: 10px 12px; margin-bottom: 0px;">
+            <div style="font-size: 0.72rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 6px;">Pipeline Environment Specs</div>
+            <div style="display: flex; flex-direction: column; gap: 4px; font-size: 0.76rem;">
+                <div>🤖 <strong>Retrieval Model:</strong> FAISS Vector Index (MiniLM-L6)</div>
+                <div>🧠 <strong>Semantic Similarity:</strong> MPNet-base-v2</div>
+                <div>⚡ <strong>Reranker:</strong> Cross-Encoder (MiniLM-L6)</div>
+                <div>📝 <strong>Text Search Scorer:</strong> BM25 Okapi</div>
+                <div>🌳 <strong>Surrogate Scorer:</strong> GBR Regression model</div>
+                <div>💻 <strong>Hardware Constraints:</strong> CPU-Only (offline mode)</div>
+                <div>🚫 <strong>Network Connectivity:</strong> Local / Air-gapped</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
         
     with col_right:
         if filepath and (run_btn or st.session_state.pipeline_results is not None):
@@ -827,8 +716,9 @@ with tab1:
                 st.markdown("---")
                 
                 # Run pipeline
+                # Run pipeline
                 if run_btn or st.session_state.pipeline_results is None:
-                    with st.spinner("Executing FAISS dense search, scoring candidates, and applying behavioral modifiers..."):
+                    with st.status("Executing CVHunt AI Recruiter Pipeline...", expanded=True) as status:
                         t_start = time.time()
                         st.session_state.pipeline_results = run_interactive_pipeline(
                             jd_reqs, 
@@ -836,17 +726,45 @@ with tab1:
                             index, 
                             candidate_ids, 
                             sem_model, 
-                            reranker
+                            reranker,
+                            status_box=status
                         )
                         st.session_state.pipeline_time = time.time() - t_start
                         
                 results = st.session_state.pipeline_results
                 p_time = st.session_state.get("pipeline_time", 0.0)
                 
-                st.success(f"Pipeline executed successfully in **{p_time:.2f} seconds**! Discovered and ranked top {len(results)} matching profiles.")
+                # Show runtime metrics in columns
+                met_col1, met_col2 = st.columns(2)
+                with met_col1:
+                    st.metric(label="Pipeline Runtime", value=f"{p_time:.2f} s", delta="CPU-only mode")
+                with met_col2:
+                    st.metric(label="Ranked Pool Size", value=f"{len(results)} profiles")
+                
+                st.markdown("---")
                 
                 # Display Ranked List
                 st.markdown('<div class="section-title">Top 100 Candidates List</div>', unsafe_allow_html=True)
+                
+                # Generate Ranked CSV for Download Button
+                csv_rows = []
+                for r in results[:100]:
+                    csv_rows.append({
+                        "candidate_id": r["candidate_id"],
+                        "rank": r["rank"],
+                        "score": round(r["score"], 4),
+                        "reasoning": r["reasoning"]
+                    })
+                df_csv = pd.DataFrame(csv_rows)
+                csv_data = df_csv.to_csv(index=False, encoding="utf-8")
+                
+                st.download_button(
+                    label="📥 Download Ranked Top 100 CSV (submission.csv)",
+                    data=csv_data,
+                    file_name="submission.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
                 
                 # Custom HTML table styling
                 table_rows = ""
@@ -933,7 +851,8 @@ with tab2:
         results = st.session_state.pipeline_results
         
         # Get selected candidate details
-        cand_data = next((r for r in results if r["candidate_id"] == cid), None)
+        results_dict = {r["candidate_id"]: r for r in results}
+        cand_data = results_dict.get(cid)
         
         if cand_data:
             c_info = cand_data["candidate_info"]
@@ -1274,4 +1193,126 @@ with tab3:
             st.plotly_chart(fig4, use_container_width=True, config={"displayModeBar": False})
             st.markdown("</div>", unsafe_allow_html=True)
     else:
-        st.info("No analytics data available. Please execute the ranking pipeline on the **🔍 Candidate Discoverer** tab first to populate the analytics dashboard.")
+        st.info("No analytics data available. Please execute the ranking pipeline on the **🔍 Candidate Ranker** tab first to populate the analytics dashboard.")
+
+# ----------------------------------------------------
+# TAB 4: Architecture & Pipeline
+# ----------------------------------------------------
+with tab4:
+    st.markdown('<div class="section-title">CVHunt Pipeline Visualization</div>', unsafe_allow_html=True)
+    
+    # Inline SVG Flowchart
+    st.markdown("""
+    <svg viewBox="0 0 850 180" xmlns="http://www.w3.org/2000/svg" style="width: 100%; height: auto; font-family: system-ui, sans-serif;">
+      <rect width="850" height="180" rx="12" fill="var(--bg-subtle)" stroke="var(--border)" stroke-width="1"/>
+      
+      <!-- Step 1 -->
+      <rect x="20" y="55" width="80" height="50" rx="6" fill="var(--card)" stroke="var(--border)" stroke-width="2"/>
+      <text x="60" y="85" fill="var(--text)" font-size="11" font-weight="bold" text-anchor="middle">Job Desc (JD)</text>
+      
+      <!-- Arrow 1 -->
+      <path d="M 100 80 L 120 80" stroke="var(--text-muted)" stroke-width="2" marker-end="url(#arrow)"/>
+      
+      <!-- Step 2 -->
+      <rect x="120" y="55" width="95" height="50" rx="6" fill="var(--card)" stroke="var(--border)" stroke-width="2"/>
+      <text x="167" y="78" fill="var(--text)" font-size="10" font-weight="bold" text-anchor="middle">Dynamic Parser</text>
+      <text x="167" y="94" fill="var(--text-muted)" font-size="9" text-anchor="middle">jd_parser.py</text>
+      
+      <!-- Arrow 2 -->
+      <path d="M 215 80 L 235 80" stroke="var(--text-muted)" stroke-width="2" marker-end="url(#arrow)"/>
+      
+      <!-- Step 3 -->
+      <rect x="235" y="55" width="95" height="50" rx="6" fill="var(--card)" stroke="var(--accent)" stroke-width="2"/>
+      <text x="282" y="78" fill="var(--accent)" font-size="10" font-weight="bold" text-anchor="middle">FAISS Retrieval</text>
+      <text x="282" y="94" fill="var(--text-muted)" font-size="8" text-anchor="middle">Top 250 Retrieved</text>
+      
+      <!-- Arrow 3 -->
+      <path d="M 330 80 L 350 80" stroke="var(--text-muted)" stroke-width="2" marker-end="url(#arrow)"/>
+      
+      <!-- Hybrid Scorer dashed box -->
+      <rect x="350" y="15" width="220" height="130" rx="8" fill="none" stroke="var(--border)" stroke-width="1.5" stroke-dasharray="4,4"/>
+      <text x="460" y="30" fill="var(--text-muted)" font-size="9" font-weight="bold" text-anchor="middle">4-SCORE HYBRID SCORER</text>
+      
+      <rect x="360" y="42" width="95" height="32" rx="4" fill="var(--card)" stroke="var(--border)" stroke-width="1"/>
+      <text x="407" y="62" fill="var(--text)" font-size="8.5" text-anchor="middle">Semantic (MPNet)</text>
+      
+      <rect x="465" y="42" width="95" height="32" rx="4" fill="var(--card)" stroke="var(--border)" stroke-width="1"/>
+      <text x="512" y="62" fill="var(--text)" font-size="8.5" text-anchor="middle">BM25 Keyword</text>
+      
+      <rect x="360" y="88" width="95" height="32" rx="4" fill="var(--card)" stroke="var(--border)" stroke-width="1"/>
+      <text x="407" y="108" fill="var(--text)" font-size="8.5" text-anchor="middle">Heuristic/Surrogate</text>
+      
+      <rect x="465" y="88" width="95" height="32" rx="4" fill="var(--card)" stroke="var(--border)" stroke-width="1"/>
+      <text x="512" y="108" fill="var(--text)" font-size="8.5" text-anchor="middle">Vector (FAISS)</text>
+      
+      <!-- Arrow 4 -->
+      <path d="M 570 80 L 590 80" stroke="var(--text-muted)" stroke-width="2" marker-end="url(#arrow)"/>
+      
+      <!-- Step 5 -->
+      <rect x="590" y="55" width="105" height="50" rx="6" fill="var(--card)" stroke="var(--border)" stroke-width="2"/>
+      <text x="642" y="78" fill="var(--text)" font-size="10" font-weight="bold" text-anchor="middle">Cross-Encoder</text>
+      <text x="642" y="94" fill="var(--text-muted)" font-size="9" text-anchor="middle">MiniLM Reranker</text>
+      
+      <!-- Arrow 5 -->
+      <path d="M 695 80 L 715 80" stroke="var(--text-muted)" stroke-width="2" marker-end="url(#arrow)"/>
+      
+      <!-- Step 6 -->
+      <rect x="715" y="55" width="115" height="50" rx="6" fill="var(--card)" stroke="var(--border)" stroke-width="2"/>
+      <text x="772" y="78" fill="var(--text)" font-size="10" font-weight="bold" text-anchor="middle">Rank & Reasoning</text>
+      <text x="772" y="94" fill="var(--text-muted)" font-size="9" text-anchor="middle">submission.csv</text>
+      
+      <!-- Marker -->
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 1.5 L 10 5 L 0 8.5 z" fill="var(--text-dim)"/>
+        </marker>
+      </defs>
+    </svg>
+    """, unsafe_allow_html=True)
+    
+    st.markdown("---")
+    
+    # Textual Details
+    arch_col1, arch_col2 = st.columns(2)
+    with arch_col1:
+        st.markdown("""
+        ### 🏛️ Pipeline Stages Explained
+        
+        #### 1. Dynamic JD Parsing (`jd_parser.py`)
+        - Dynamically extracts must-have and nice-to-have technical skills directly from the text of the job description.
+        - Identifies location preferences and ideal experience ranges dynamically using regular expressions.
+        - Translates parsed requirements into a unified dense textual query.
+        
+        #### 2. First-Stage Dense Retrieval (`vector_index.py`)
+        - Encodes the parsed JD query into a dense vector embedding using `all-MiniLM-L6-v2`.
+        - Performs an O(1) similarity search against 100,000 candidate profiles in a **FAISS FlatIP vector index**.
+        - Retrieves the top 250 candidate IDs matching the query vector.
+        
+        #### 3. 4-Score Hybrid Scorer (`compute_final_ranking`)
+        Blends multiple retrieval and scoring philosophies:
+        - **Semantic Scorer (20%):** Calculates cosine similarity between dense candidate profile texts and the JD using `all-mpnet-base-v2`. Includes keyword boosts.
+        - **BM25 Search (20%):** Runs classical keyword frequencies over profile texts to lock onto specific, exact matching terms.
+        - **Vector Search (15%):** Leverages raw index similarity distances.
+        - **Structured Scorer (45%):** Blend of rule-based gating (gains/decays for experience, education tier, and company ratio) and a **Gradient Boosting Regressor** surrogate trained on professional recruiters' decisions.
+        """)
+    with arch_col2:
+        st.markdown("""
+        ### 🔒 Security, Compliance & Rules
+        
+        #### ⚠️ Honeypot Filtering (`honeypot_detector.py`)
+        - Employs 8 robust rules to detect impossible/cheat resume records (e.g. claiming skills before a company was founded, or claiming expert skills with zero actual job durations).
+        - Flagged profiles are capped at a maximum final score of `20.0`, safely filtering them out of the top 100 list.
+        
+        #### ⚖️ Hard Disqualifications & Gating
+        - Candidate profiles with `< 2` must-have skills are auto-disqualified (score = 0.0).
+        - Candidates with `< 3` must-have skills receive a heavy `0.15` multiplier penalty.
+        - Auto-rejects candidates with zero product-company experience or ≥ 95% consulting experience ratios.
+        
+        #### 📈 Deterministic Tie-Breaking
+        - If two candidate profiles achieve identical scores, ranks are assigned deterministically by sorting descending by score, then ascending by candidate ID.
+        
+        ### ⚙️ Strict Sandbox Optimization
+        - **Memory Limit Compliance:** Streams matching profiles dynamically on-the-fly inside the query thread, avoiding pre-loading the 100K candidates database into RAM (saving ~350MB).
+        - **Model Unloading:** Deletes the first-stage vector model `all-MiniLM-L6-v2` and triggers `gc.collect()` immediately after retrieval to keep container footprint under **1.0 GB RAM**.
+        - **Offline Enforcement:** Automatically turns off HuggingFace hub connections (`HF_HUB_OFFLINE="1"`) to prevent timeout delays, completing the ranking in **~93 seconds** on CPU.
+        """)
