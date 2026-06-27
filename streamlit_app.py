@@ -537,82 +537,68 @@ def run_interactive_pipeline(
         if is_flagged:
             flag_reasons[cid] = reason
             
-    # ----------------------------------------------------
-    # Multi-Stage Pre-Filtering: Select Top 150 Candidates
-    # ----------------------------------------------------
-    if len(candidates) > 150:
-        if status_box:
-            status_box.update(label="⚡ Filtering top candidates by experience & location...", state="running")
-        pre_scored = []
+    # 1. Structured & Surrogate scoring on all 1000 candidates
+    if status_box:
+        status_box.update(label="📊 Computing Structured & Surrogate scores on all 1000 candidates...", state="running")
+    structured_scores, structured_breakdowns = score_structured(candidates, features_list, ideal_range=jd_reqs.ideal_experience_range)
+    
+    # 2. BM25 keyword matching on all 1000 candidates
+    if status_box:
+        status_box.update(label="📝 Running BM25 keyword matching on all 1000 candidates...", state="running")
+    bm25_scores = score_bm25(candidates, query_text)
+    
+    # 3. Build vector scores map
+    vector_scores = {}
+    for idx, cid in enumerate(candidate_ids):
+        if cid in retrieved_cids_set:
+            vector_scores[cid] = float(vector_scores_arr[idx])
+            
+    # 4. Run Intermediate scoring (combines FAISS, BM25, Structured) to select the top 150
+    if status_box:
+        status_box.update(label="🧬 Running high-fidelity pre-filtering on 1000 candidates...", state="running")
+    from src.hybrid_aggregator import compute_final_ranking
+    intermediate_results = compute_final_ranking(
+        candidates_data=candidates,
+        semantic_scores=None,
+        structured_scores=structured_scores,
+        structured_breakdowns=structured_breakdowns,
+        vector_scores=vector_scores,
+        flag_reasons=flag_reasons,
+        features_list=features_list,
+        bm25_scores=bm25_scores,
+        cross_encoder_scores=None,
+        jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills),
+        apply_mapping=False
+    )
+    
+    # Prune candidates list to top 150 based on intermediate ranking
+    top_intermediate = intermediate_results[:150]
+    top_cids_set = {x[0] for x in top_intermediate}
+    
+    # Keep candidates and features_list aligned 1-to-1
+    top_candidates = []
+    top_features_list = []
+    for cid, _, _ in top_intermediate:
         for idx, cand in enumerate(candidates):
-            cid = cand["candidate_id"]
-            feats = features_list[idx]
-            
-            # 1. Experience score using dynamic scorer logic
-            exp_feat = feats.get("experience_features", {})
-            years = exp_feat.get("years", 0.0)
-            exp_min, exp_max, exp_peak = jd_reqs.ideal_experience_range
-            if exp_min <= years <= exp_max:
-                exp_pre_score = 100.0
-            elif (max(0.0, exp_min - 2) <= years < exp_min) or (exp_max < years <= exp_max + 3):
-                exp_pre_score = 70.0
-            elif (max(0.0, exp_min - 5) <= years < max(0.0, exp_min - 2)) or (exp_max + 3 < years <= exp_max + 6):
-                exp_pre_score = 40.0
-            else:
-                exp_pre_score = 20.0
-                
-            # 2. Location match score
-            is_target_location = feats.get("behavioral_features", {}).get("is_pune_noida", False)
-            loc_pre_score = 100.0 if is_target_location else 0.0
-            
-            # 3. Vector search rank score
-            faiss_rank = retrieved_cids.index(cid) if cid in retrieved_cids else len(retrieved_cids)
-            vec_pre_score = 100.0 * (1.0 - (faiss_rank / len(retrieved_cids)))
-            
-            # 4. Skills match score
-            must_have_count = feats.get("skill_features", {}).get("must_have_count", 0)
-            skill_pre_score = min(100.0, must_have_count * 10.0)
-            
-            # Weighted average pre-score
-            pre_score = (
-                vec_pre_score * 0.40 +
-                exp_pre_score * 0.30 +
-                loc_pre_score * 0.15 +
-                skill_pre_score * 0.15
-            )
-            pre_scored.append((pre_score, cand, feats))
-            
-        pre_scored.sort(key=lambda x: -x[0])
-        top_n = pre_scored[:150]
-        
-        candidates = [x[1] for x in top_n]
-        features_list = [x[2] for x in top_n]
+            if cand["candidate_id"] == cid:
+                top_candidates.append(cand)
+                top_features_list.append(features_list[idx])
+                break
+    candidates = top_candidates
+    features_list = top_features_list
             
     if status_box:
         status_box.update(label="🧠 Loading ML models (MPNet & CrossEncoder)...", state="running")
     sem_model, reranker = load_ml_models()
             
     if status_box:
-        status_box.update(label="🧠 Running Semantic model scoring...", state="running")
+        status_box.update(label="🧠 Running Semantic model scoring on top 150...", state="running")
     semantic_scores = score_semantic(candidates, query_text, sem_model)
     
     if status_box:
-        status_box.update(label="📝 Running BM25 keyword matching...", state="running")
-    bm25_scores = score_bm25(candidates, query_text)
-    
-    if status_box:
-        status_box.update(label="🤖 Executing Cross-Encoder reranking...", state="running")
+        status_box.update(label="🤖 Executing Cross-Encoder reranking on top 150...", state="running")
     cross_encoder_scores = score_cross_encoder(candidates, query_text, reranker)
     
-    if status_box:
-        status_box.update(label="📊 Computing Structured & Surrogate scores...", state="running")
-    structured_scores, structured_breakdowns = score_structured(candidates, features_list, ideal_range=jd_reqs.ideal_experience_range)
-    
-    vector_scores = {}
-    for idx, cid in enumerate(candidate_ids):
-        if cid in retrieved_cids_set:
-            vector_scores[cid] = float(vector_scores_arr[idx])
-            
     if status_box:
         status_box.update(label="🧬 Aggregating & mapping final scores...", state="running")
     ranked_results = aggregate_scores(

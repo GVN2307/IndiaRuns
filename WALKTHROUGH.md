@@ -133,14 +133,12 @@ To support Job Descriptions with customized experience requirements and specific
 ### 2. Dynamic Location Matching
 * Extracted Job Description location preferences are parsed to dynamically match against candidates' location text (e.g. checking for Pune, Mumbai, etc., instead of relying on hardcoded city matches).
 
-### 3. Multi-Stage Hybrid Pre-Filtering (Performance & Accuracy Boost)
+### 3. Two-Pass High-Fidelity Scoring (Performance & Accuracy Boost)
 * Increased the first-stage FAISS retrieval from **250** to **1000** candidates. This ensures candidates with matching experience/locations are not left behind due to title mismatches in vector search.
-* Applied a fast **Multi-Stage Pre-Filter** over the 1000 candidates based on a weighted combination of:
-  * FAISS vector search rank (`40%`)
-  * Experience match (`30%`)
-  * Location match (`15%`)
-  * Must-have skills match (`15%`)
-* Pruned the candidate pool down to the top **150** matches before executing the expensive second-stage ML models (Semantic, BM25, Cross-Encoder). This yields a **faster overall execution time** while ensuring candidates with matching constraints are ranked at the top.
+* Run the **full Structured Scorer** (including title-consistency, career quality, and honeypot checks) and the **BM25 Search Scorer** on all **1000** candidates.
+* Compute a normalized **intermediate score** blending the three active components:
+  $$\text{intermediate\_score} = \frac{\text{vector\_score} \times 0.15 + \text{bm25\_score} \times 0.20 + \text{structured\_score} \times 0.45}{0.80}$$
+* Pruning: Select the top **150** candidates based on this intermediate ranking, and only run the expensive ML models (Semantic Similarity and Cross-Encoder Reranking) on those top 150. This preserves all nuanced signals for every retrieved candidate while remaining well under the runtime budget.
 
 ### 4. Relative Must-Have Gating
 * Converted the absolute must-have skill gating threshold (`must_have_count < 2`) to be relative to the total number of must-have skills in the JD. If a JD specifies only 2 must-haves, candidates matching 1 out of 2 are no longer rejected with a 0.0 score, preserving high-quality partial-fit matches.

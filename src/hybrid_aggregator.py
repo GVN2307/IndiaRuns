@@ -186,7 +186,8 @@ def compute_final_ranking(
     features_list: List[Dict[str, Any]] = None,
     bm25_scores: Dict[str, float] = None,
     cross_encoder_scores: Dict[str, float] = None,
-    jd_skills: Tuple[List[str], List[str]] = None
+    jd_skills: Tuple[List[str], List[str]] = None,
+    apply_mapping: bool = True
 ) -> List[Tuple[str, float, Dict[str, Any]]]:
     """
     Runs the full aggregation pipeline for all candidates.
@@ -198,13 +199,20 @@ def compute_final_ranking(
     for idx, cand in enumerate(candidates_data):
         cid = cand.get("candidate_id", "")
         
-        sem_s = semantic_scores.get(cid, 0.0)
+        sem_s = semantic_scores.get(cid, 0.0) if semantic_scores is not None else 0.0
         str_s = structured_scores.get(cid, 0.0)
         vec_s = vector_scores.get(cid, 0.0)
         bm25_s = bm25_scores.get(cid, 0.0) if bm25_scores is not None else 0.0
         
-        # 1. Aggregate
-        agg_score = aggregate_scores(sem_s, str_s, vec_s, bm25_s)
+        # 1. Aggregate: If semantic is not present, normalize weights of active scores
+        if semantic_scores is not None:
+            agg_score = aggregate_scores(sem_s, str_s, vec_s, bm25_s)
+        else:
+            w_bm25 = SCORE_WEIGHTS.get("bm25", 0.20)
+            w_vec = SCORE_WEIGHTS.get("vector", 0.15)
+            w_str = SCORE_WEIGHTS.get("structured", 0.45)
+            w_sum = w_bm25 + w_vec + w_str
+            agg_score = ((bm25_s * w_bm25) + (vec_s * w_vec) + (str_s * w_str)) / w_sum if w_sum > 0 else 0.0
         
         # Reuse pre-extracted features if available
         if features_list is not None and idx < len(features_list):
@@ -314,6 +322,9 @@ def compute_final_ranking(
         
     # Sort with tiebreaker: descending by final_score, ascending by candidate_id
     ranked_candidates.sort(key=lambda x: (-x[1], x[0]))
+    
+    if not apply_mapping:
+        return ranked_candidates
     
     # ----------------------------------------------------
     # Apply Piecewise Score Mapping to Top 100

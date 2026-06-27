@@ -141,71 +141,91 @@ def main():
         if is_flagged:
             flag_reasons[cid] = reason
             
-    # Multi-Stage Pre-Filtering: Select Top 150 Candidates
-    if len(candidates) > 150:
-        print("Filtering top candidates by experience & location...")
-        pre_scored = []
-        for idx, cand in enumerate(candidates):
-            cid = cand["candidate_id"]
-            feats = features_list[idx]
-            
-            # 1. Experience score using dynamic scorer logic
-            exp_feat = feats.get("experience_features", {})
-            years = exp_feat.get("years", 0.0)
-            exp_min, exp_max, exp_peak = jd_reqs.ideal_experience_range
-            if exp_min <= years <= exp_max:
-                exp_pre_score = 100.0
-            elif (max(0.0, exp_min - 2) <= years < exp_min) or (exp_max < years <= exp_max + 3):
-                exp_pre_score = 70.0
-            elif (max(0.0, exp_min - 5) <= years < max(0.0, exp_min - 2)) or (exp_max + 3 < years <= exp_max + 6):
-                exp_pre_score = 40.0
-            else:
-                exp_pre_score = 20.0
-                
-            # 2. Location match score
-            is_target_location = feats.get("behavioral_features", {}).get("is_pune_noida", False)
-            loc_pre_score = 100.0 if is_target_location else 0.0
-            
-            # 3. Vector search rank score
-            faiss_rank = retrieved_cids.index(cid) if cid in retrieved_cids else len(retrieved_cids)
-            vec_pre_score = 100.0 * (1.0 - (faiss_rank / len(retrieved_cids)))
-            
-            # 4. Skills match score
-            must_have_count = feats.get("skill_features", {}).get("must_have_count", 0)
-            skill_pre_score = min(100.0, must_have_count * 10.0)
-            
-            # Weighted average pre-score
-            pre_score = (
-                vec_pre_score * 0.40 +
-                exp_pre_score * 0.30 +
-                loc_pre_score * 0.15 +
-                skill_pre_score * 0.15
-            )
-            pre_scored.append((pre_score, cand, feats))
-            
-        pre_scored.sort(key=lambda x: -x[0])
-        top_n = pre_scored[:150]
+    # 1. Structured & Surrogate scoring on all 1000 candidates
+    print("Computing Structured & Surrogate scores on all 1000 candidates...")
+    structured_scores = {}
+    structured_breakdowns = {}
+    s_path = args.embeddings.replace("candidate_embeddings.npy", "surrogate_model.pkl") if args.embeddings else SURROGATE_PATH
+    if not os.path.exists(s_path):
+        s_path = SURROGATE_PATH
         
-        candidates = [x[1] for x in top_n]
-        features_list = [x[2] for x in top_n]
+    for cand, feats in zip(candidates, features_list):
+        cid = cand["candidate_id"]
+        score, breakdown = compute_structured_score(feats, surrogate_path=s_path, ideal_range=jd_reqs.ideal_experience_range)
+        structured_scores[cid] = score
+        structured_breakdowns[cid] = breakdown
+        
+    # 2. BM25 keyword matching on all 1000 candidates
+    print("Computing BM25 Similarity on all 1000 candidates...")
+    from rank_bm25 import BM25Okapi
+    bm25_texts = [create_candidate_text(c) for c in candidates]
+    tokenized_corpus = [doc.lower().split(" ") for doc in bm25_texts]
+    bm25_model = BM25Okapi(tokenized_corpus)
+    
+    tokenized_query = query_text.lower().split(" ")
+    bm25_raw_scores = bm25_model.get_scores(tokenized_query)
+    
+    min_bm25 = float(np.min(bm25_raw_scores))
+    max_bm25 = float(np.max(bm25_raw_scores))
+    
+    bm25_scores = {}
+    if max_bm25 > min_bm25:
+        for idx, cand in enumerate(candidates):
+            bm25_scores[cand["candidate_id"]] = float(((bm25_raw_scores[idx] - min_bm25) / (max_bm25 - min_bm25)) * 100.0)
+    else:
+        for cand in candidates:
+            bm25_scores[cand["candidate_id"]] = 50.0
             
+    # 3. Build vector scores map
+    vector_scores = {}
+    for idx, cid in enumerate(candidate_ids):
+        if cid in retrieved_cids_set:
+            vector_scores[cid] = float(vector_scores_arr[idx])
+            
+    # 4. Run Intermediate scoring (combines FAISS, BM25, Structured) to select the top 150
+    print("Running high-fidelity pre-filtering to select top 150 candidates...")
+    from src.hybrid_aggregator import compute_final_ranking
+    intermediate_results = compute_final_ranking(
+        candidates_data=candidates,
+        semantic_scores=None,
+        structured_scores=structured_scores,
+        structured_breakdowns=structured_breakdowns,
+        vector_scores=vector_scores,
+        flag_reasons=flag_reasons,
+        features_list=features_list,
+        bm25_scores=bm25_scores,
+        cross_encoder_scores=None,
+        jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills),
+        apply_mapping=False
+    )
+    
+    # Prune candidates list to top 150 based on intermediate ranking
+    top_intermediate = intermediate_results[:150]
+    top_cids_set = {x[0] for x in top_intermediate}
+    
+    # Keep candidates and features_list aligned 1-to-1
+    top_candidates = []
+    top_features_list = []
+    for cid, _, _ in top_intermediate:
+        for idx, cand in enumerate(candidates):
+            if cand["candidate_id"] == cid:
+                top_candidates.append(cand)
+                top_features_list.append(features_list[idx])
+                break
+    candidates = top_candidates
+    features_list = top_features_list
+    
     timings["Candidate Streaming & Filtering"] = time.time() - p_start
-    print(f"Loaded and extracted features for {len(candidates)} matched candidates.")
+    print(f"Loaded and filtered down to top {len(candidates)} candidates for second-pass ML scoring.")
 
     # ----------------------------------------------------
     # Phase 4: Second-Stage Scoring
     # ----------------------------------------------------
     print("\n[Phase 4] Scoring candidates...")
     p_start = time.time()
-    
-    # 4.1 Vector Scores dictionary
-    vector_scores = {}
-    for idx, cid in enumerate(candidate_ids):
-        if cid in retrieved_cids_set:
-            vector_scores[cid] = float(vector_scores_arr[idx])
             
-    # 4.2 Score 1: Semantic Similarity (mpnet-base)
-    print("Computing Score 1 (Semantic Similarity)...")
+    # 4.1 Score 1: Semantic Similarity (mpnet-base) on top 150
+    print("Computing Score 1 (Semantic Similarity) on top 150...")
     semantic_scores = {c["candidate_id"]: 0.0 for c in candidates}
     try:
         from sentence_transformers import SentenceTransformer
@@ -237,28 +257,7 @@ def main():
             boosted_score = score + 12.0 if has_jd_term else score
             semantic_scores[cid] = min(100.0, float(boosted_score))
             
-    # 4.3 Score 4: BM25 Scorer
-    print("Computing Score 4 (BM25 Similarity)...")
-    from rank_bm25 import BM25Okapi
-    bm25_texts = [create_candidate_text(c) for c in candidates]
-    tokenized_corpus = [doc.lower().split(" ") for doc in bm25_texts]
-    bm25_model = BM25Okapi(tokenized_corpus)
-    
-    tokenized_query = query_text.lower().split(" ")
-    bm25_raw_scores = bm25_model.get_scores(tokenized_query)
-    
-    min_bm25 = float(np.min(bm25_raw_scores))
-    max_bm25 = float(np.max(bm25_raw_scores))
-    
-    bm25_scores = {}
-    if max_bm25 > min_bm25:
-        for idx, cand in enumerate(candidates):
-            bm25_scores[cand["candidate_id"]] = float(((bm25_raw_scores[idx] - min_bm25) / (max_bm25 - min_bm25)) * 100.0)
-    else:
-        for cand in candidates:
-            bm25_scores[cand["candidate_id"]] = 50.0
-            
-    # 4.4 Score 5: CrossEncoder Reranker
+    # 4.2 Score 5: CrossEncoder Reranker on top 150
     cross_encoder_scores = {}
     try:
         from sentence_transformers import CrossEncoder
@@ -280,21 +279,6 @@ def main():
                 cross_encoder_scores[c["candidate_id"]] = 50.0
     except Exception as e:
         print(f"Warning: Failed to run CrossEncoder reranking: {e}")
-        
-    # 4.5 Score 2: Structured Scorer
-    print("Computing Score 2 (Structured Scoring)...")
-    structured_scores = {}
-    structured_breakdowns = {}
-    
-    s_path = args.embeddings.replace("candidate_embeddings.npy", "surrogate_model.pkl") if args.embeddings else SURROGATE_PATH
-    if not os.path.exists(s_path):
-        s_path = SURROGATE_PATH
-        
-    for cand, feats in zip(candidates, features_list):
-        cid = cand["candidate_id"]
-        score, breakdown = compute_structured_score(feats, surrogate_path=s_path, ideal_range=jd_reqs.ideal_experience_range)
-        structured_scores[cid] = score
-        structured_breakdowns[cid] = breakdown
         
     timings["Candidates Scoring"] = time.time() - p_start
 
