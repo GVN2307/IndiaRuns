@@ -62,6 +62,25 @@ This query expansion ensures that the bi-encoder embedding captures all semantic
 
 ## 2. 🔍 Component 2: Dense Semantic Search & FAISS (`src/vector_index.py`)
 
+### What is Semantic Search?
+Lexical search (like SQL `LIKE` or basic keyword matching) fails when candidates use synonyms (e.g., matching a candidate who writes "Deep Learning" against a JD asking for "Neural Networks"). Semantic search resolves this by encoding text into a dense vector space:
+1. A **Bi-Encoder** (`all-MiniLM-L6-v2`) projects candidate resumes and the job description query into 384-dimensional dense vectors.
+2. The distance between these vectors (using Cosine Similarity) represents their semantic similarity.
+
+### What is FAISS and Why is it used?
+Comparing a query vector against 100,000 candidate vectors sequentially using a linear scan is slow ($O(N)$ complexity, taking several seconds on CPU).
+**FAISS (Facebook AI Similarity Search)** is a library optimized for dense vector similarity search:
+* It stores vectors in a highly optimized memory layout.
+* It uses index structures (like Flat L2 or Hierarchical Navigable Small World graphs) to perform nearest-neighbor searches in $O(\log N)$ time.
+* It retrieves the top 1,000 candidate IDs from a pool of 100,000 in **under 25 milliseconds**.
+
+### How is it used?
+1. During system startup, the pre-computed index (`models/faiss_index.bin`) is loaded into memory using `load_index()`.
+2. The parsed Job Description is encoded into a 384-dimensional vector.
+3. FAISS performs an index query to retrieve the top **1,000** candidate IDs.
+
+---
+
 ### 🤖 Deep-Dive: What is `all-MiniLM-L6-v2` and How Does It Work?
 The `all-MiniLM-L6-v2` model is a distilled Transformer-based **Bi-Encoder** designed to map text sentences and paragraphs to a 384-dimensional dense vector space. 
 
@@ -122,6 +141,17 @@ For millions of vectors, brute-force search becomes too slow. HNSW solves this b
 
 ## 3. 📝 Component 3: Lexical matching via Okapi BM25 Scorer
 
+### Why is it used?
+Dense semantic search is excellent for concepts, but it can struggle with **exact terminology** (e.g., separating "Python 2.7" from "Python 3.11", or matching specific libraries like "Milvus" or "FAISS"). 
+**Okapi BM25** is a state-of-the-art bag-of-words retrieval function that ranks documents based on term frequency and document length normalization (TF-IDF variant). It ensures that candidates who explicitly mention the precise required technologies are ranked higher.
+
+### How is it used?
+1. The candidates are tokenized into lowercased terms.
+2. BM25 scores are calculated for the top 1,000 candidates retrieved by FAISS.
+3. This score is normalized to a 0–100 scale and contributes **20%** of the intermediate score.
+
+---
+
 ### 🔬 Deep-Dive: What is BM25 and How Does It Work?
 BM25 (often called Okapi BM25) is a ranking function used by search engines to estimate the relevance of a document to a given search query. It was developed in the 1990s at London's City University as an improvement over classical TF-IDF.
 
@@ -175,6 +205,19 @@ This score is computed for all 1000 candidates and contributes **45%** of the in
 
 ## 5. 🧠 Component 5: Gradient Boosting Surrogate Model (`models/surrogate_model.pkl`)
 
+### Why is it used?
+Rule-based scoring systems are discrete step-functions, which create "cliff edges" in rankings (e.g., a candidate with 59 days notice period gets no penalty, but 61 days notice triggers a −20% penalty). 
+A **Surrogate Model** (Gradient Boosting Regressor) is trained to learn the mapping of candidate features to final structured scores. It serves two purposes:
+1. **Continuous Interpolation:** It smooths out hard threshold cliffs, creating soft transitions in scores.
+2. **Generalization:** It learns feature correlations, allowing it to predict robust alignment scores for candidates with incomplete or noisy profile data.
+
+### How is it used?
+* We use a standard Python `pickle` saved estimator (`models/surrogate_model.pkl`).
+* In offline mode, GBR is trained using `train_surrogate.py` on heuristic scores to act as a smoothing engine.
+* **Recruiter-in-the-Loop Extensibility:** The script is engineered to accept an `OPENAI_API_KEY`. If provided, it queries `gpt-4o-mini` to score candidate resumes. The GBR then trains on these expert recruiter scores, adjusting the weights of features (like Title Consistency vs. Education) to match the recruiter's subjective scoring preference.
+
+---
+
 ### 📦 Deep-Dive: What is Python's `pickle`?
 In Python, **Pickling** is the process of converting a live, in-memory object hierarchy (like a trained machine learning model, a dictionary, or a custom class) into a serialized byte stream. This byte stream can be saved to a file (`.pkl`) or transmitted over a network.
 * **Unpickling:** The inverse operation where a byte stream is parsed and converted back into a live Python object in memory.
@@ -204,6 +247,20 @@ The GBR acts as a smooth surrogate proxy. Its continuous predictions are blended
 ---
 
 ## 6. 🔀 Component 6: Deep Semantic Reranking via Cross-Encoder (`src/semantic_scorer.py`)
+
+### What is a Cross-Encoder and Why is it used?
+Bi-encoders (like the one used for FAISS) are "retrievers"—they encode the JD and candidate profiles *independently* into single vectors. This loses the fine-grained token-level interactions.
+A **Cross-Encoder** is a "reranker"—it processes the JD and candidate profile *simultaneously* inside the transformer model, performing attention over both texts together. This yields far more accurate similarity scores.
+
+### Funnel Optimization (Why only 150 candidates?)
+Cross-Encoders require a full transformer forward pass for every candidate-query pair. Running a Cross-Encoder over all 100,000 candidates (or even 1,000) on CPU would take several minutes, violating our 5-minute execution limit.
+**Our Two-Pass funnelling optimization solves this:**
+1. FAISS vector search retrieves the top **1,000** candidates.
+2. Structured Scoring and BM25 are computed on all 1,000 candidates (taking ~12 seconds).
+3. The candidates are ranked by an intermediate score, and pruned down to the top **150**.
+4. The heavy Cross-Encoder and MPNet Semantic Scorer are executed **only on these top 150 candidates**, keeping the runtime under **225 seconds**.
+
+---
 
 ### 🚀 Deep-Dive: `all-mpnet-base-v2` Semantic Scorer
 The `all-mpnet-base-v2` model is a high-capacity sentence transformer based on Microsoft's **MPNet** (Masked and Permuted Pre-training) architecture.
