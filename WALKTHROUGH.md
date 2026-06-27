@@ -103,4 +103,20 @@ In this phase, we prepared and deployed the candidate discovery and ranking pipe
 ### 4. Dependency Updates
 * Added `torchvision` to `requirements.txt` to suppress optional import warning tracebacks printed in the Streamlit logs by `transformers`.
 
+---
+
+## 🎨 V4 UI/UX Redesign & Pipeline Refactoring
+
+Following recruiter feedback and to improve demonstration clarity for judges, we implemented a significant frontend overhaul and code clean-up:
+
+1. **CSS Decoupling:** Moved static styling rules out of `streamlit_app.py` into a dedicated [styles.css](file:///c:/Users/veera/Desktop/Codes%20for%20fun/India%20Runs/CVHunt/styles.css) file to clean up the code.
+2. **Modularized Pipeline:** Refactored the monolithic `run_interactive_pipeline` into isolated helper functions (`retrieve_top_k`, `fetch_candidates`, `score_semantic`, `score_bm25`, `score_cross_encoder`, `score_structured`, `aggregate_scores`) to improve code testability and readability.
+3. **O(1) Profiler Lookups:** Optimised candidate lookup in the profiler tab by changing sequential lists searches to fast O(1) dictionary maps (`results_dict` and `candidate_map`).
+4. **Weights Expander:** Collapsed advanced weighting sliders under `st.expander` to simplify the UI.
+5. **Step-by-Step Status Tracker:** Swapped the generic spinner for an interactive `st.status` steps tracker to show progress during ranking.
+6. **KPI Performance Metric:** Added `st.metric` cards to showcase total execution runtime and ranked candidates size.
+7. **System Specs Card:** Showcases system configuration parameters showing absolute compliance with air-gapped CPU-only rules.
+8. **Download CSV Button:** Added a direct `st.download_button` to download the final CSV.
+9. **Architecture Tab:** Added an `Architecture & Pipeline` tab displaying a custom theme-aware inline SVG flowchart and detailed descriptions.
+
 
