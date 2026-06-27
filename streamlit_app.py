@@ -1077,13 +1077,12 @@ with tab2:
                             
                         # Format years/months
                         dur_str = f"{months // 12}y {months % 12}m" if months >= 12 else f"{months}m"
-                        
-                        skill_badges += f"""
-                        <div style="display: inline-block; margin: 4px; padding: 6px 10px; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 6px; font-size: 0.76rem;">
-                            <strong style="color: var(--text);">{name}</strong> 
-                            <span class="badge {p_cls}" style="font-size:0.6rem; padding: 1px 5px; margin-left:5px;">{prof} ({dur_str})</span>
-                        </div>
-                        """
+                        skill_badges += (
+                            f'<div style="display: inline-block; margin: 4px; padding: 6px 10px; background: var(--bg-subtle); border: 1px solid var(--border); border-radius: 6px; font-size: 0.76rem;">'
+                            f'<strong style="color: var(--text);">{name}</strong> '
+                            f'<span class="badge {p_cls}" style="font-size:0.6rem; padding: 1px 5px; margin-left:5px;">{prof} ({dur_str})</span>'
+                            f'</div>'
+                        )
                     st.markdown(f'<div style="line-height:1.8;">{skill_badges}</div>', unsafe_allow_html=True)
                 else:
                     st.markdown("<p style='color: var(--text-muted);'>No technical skills reported.</p>", unsafe_allow_html=True)
