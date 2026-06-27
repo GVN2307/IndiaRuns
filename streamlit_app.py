@@ -317,7 +317,7 @@ if not is_valid_index:
     st.stop()
 
 # Warm up data loading in background
-with st.spinner("Initializing models & index (100,000 candidates)... This may take 10-15s on first load."):
+with st.spinner("Initializing FAISS index (100,000 candidates)..."):
     try:
         index, candidate_ids = load_faiss_and_ids()
     except Exception as e:
@@ -330,8 +330,6 @@ with st.spinner("Initializing models & index (100,000 candidates)... This may ta
         st.error(f"⚠️ **Error loading FAISS Index:** {e}")
         st.info("The downloaded index file may be corrupted (e.g. if the download link was not a direct download URL and returned an HTML page). The invalid file has been deleted. Please refresh/reload the page to try downloading again with a verified direct download link.")
         st.stop()
-        
-    sem_model, reranker = load_ml_models()
 
 # ----------------------------------------------------
 # 6. Recruiter Pipeline Runner
@@ -492,8 +490,6 @@ def run_interactive_pipeline(
     weights, 
     index, 
     candidate_ids, 
-    sem_model, 
-    reranker,
     candidates_db=None,
     status_box=None
 ):
@@ -527,6 +523,10 @@ def run_interactive_pipeline(
         is_flagged, reason = run_honeypot_checks(cand)
         if is_flagged:
             flag_reasons[cid] = reason
+            
+    if status_box:
+        status_box.update(label="🧠 Loading ML models (MPNet & CrossEncoder)...", state="running")
+    sem_model, reranker = load_ml_models()
             
     if status_box:
         status_box.update(label="🧠 Running Semantic model scoring...", state="running")
@@ -715,9 +715,7 @@ with tab1:
                 st.markdown(f"**Nice To Have:** {nice_tags if nice_tags else 'None detected'}", unsafe_allow_html=True)
                 st.markdown("---")
                 
-                # Run pipeline
-                # Run pipeline
-                if run_btn or st.session_state.pipeline_results is None:
+                if run_btn:
                     with st.status("Executing CVHunt AI Recruiter Pipeline...", expanded=True) as status:
                         t_start = time.time()
                         st.session_state.pipeline_results = run_interactive_pipeline(
@@ -725,11 +723,27 @@ with tab1:
                             weights, 
                             index, 
                             candidate_ids, 
-                            sem_model, 
-                            reranker,
                             status_box=status
                         )
                         st.session_state.pipeline_time = time.time() - t_start
+                elif st.session_state.pipeline_results is None:
+                    # Load precomputed default results to make startup instantaneous & OOM-safe
+                    default_res_path = os.path.join(BASE_DIR, "data", "default_results.json")
+                    if os.path.exists(default_res_path):
+                        with open(default_res_path, "r", encoding="utf-8") as f:
+                            st.session_state.pipeline_results = json.load(f)
+                        st.session_state.pipeline_time = 92.94 # default runtime
+                    else:
+                        with st.status("Executing CVHunt AI Recruiter Pipeline (Fallback)...", expanded=True) as status:
+                            t_start = time.time()
+                            st.session_state.pipeline_results = run_interactive_pipeline(
+                                jd_reqs, 
+                                weights, 
+                                index, 
+                                candidate_ids, 
+                                status_box=status
+                            )
+                            st.session_state.pipeline_time = time.time() - t_start
                         
                 results = st.session_state.pipeline_results
                 p_time = st.session_state.get("pipeline_time", 0.0)
