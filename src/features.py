@@ -21,7 +21,11 @@ def is_skill_match(skill_name: str, target_skills: set) -> bool:
                 idx = s_lower.find(target, idx + 1)
     return False
 
-def extract_features(candidate: Dict[str, Any], jd_skills: Tuple[List[str], List[str]] = None) -> Dict[str, Any]:
+def extract_features(
+    candidate: Dict[str, Any], 
+    jd_skills: Tuple[List[str], List[str]] = None,
+    jd_location: str = None
+) -> Dict[str, Any]:
     """
     Extracts all structured features from a candidate record.
     """
@@ -228,7 +232,18 @@ def extract_features(candidate: Dict[str, Any], jd_skills: Tuple[List[str], List
 
     # Location preferences
     location = profile.get("location", "").lower()
-    is_pune_noida = "pune" in location or "noida" in location
+    is_pune_noida = False
+    if jd_location:
+        jd_loc_clean = jd_location.lower()
+        loc_parts = [p.strip() for p in jd_loc_clean.replace(",", " ").split() if len(p.strip()) > 2]
+        exclude_words = {"india", "state", "city", "country", "remote", "hybrid", "onsite"}
+        loc_cities = [p for p in loc_parts if p not in exclude_words]
+        if loc_cities:
+            is_pune_noida = any(city in location for city in loc_cities)
+        else:
+            is_pune_noida = "pune" in location or "noida" in location
+    else:
+        is_pune_noida = "pune" in location or "noida" in location
     willing_to_relocate = signals.get("willing_to_relocate", False)
 
     # GitHub activity score

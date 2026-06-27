@@ -231,16 +231,28 @@ def compute_final_ranking(
             
         # 4. Enforce must-have skill gating on final score (graduated multipliers)
         must_have_count = features.get("skill_features", {}).get("must_have_count", 0)
-        if must_have_count < 2:
+        total_must_haves = len(jd_skills[0]) if jd_skills and jd_skills[0] else 0
+        
+        if total_must_haves >= 3:
+            min_required = 2
+        elif total_must_haves > 0:
+            min_required = 1
+        else:
+            min_required = 0
+            
+        if must_have_count < min_required:
             final_score = 0.0  # reject
-        elif must_have_count < 3:
-            final_score *= 0.15
-        elif must_have_count < 6:
-            final_score *= 0.3
-        elif must_have_count < 9:
-            final_score *= 0.6
-        elif must_have_count < 12:
-            final_score *= 0.8
+        else:
+            if total_must_haves > 0:
+                match_ratio = must_have_count / total_must_haves
+                if match_ratio < 0.25:
+                    final_score *= 0.15
+                elif match_ratio < 0.50:
+                    final_score *= 0.30
+                elif match_ratio < 0.75:
+                    final_score *= 0.60
+                elif match_ratio < 0.90:
+                    final_score *= 0.80
             
         # Count shipper words in candidate's summary and job descriptions (Phase 3)
         profile = cand.get("profile", {})

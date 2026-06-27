@@ -15,7 +15,11 @@ def get_surrogate_model(model_path: str):
             print(f"Warning: Failed to load surrogate model: {e}")
     return _surrogate_model
 
-def compute_structured_score(features: Dict[str, Any], surrogate_path: str = "") -> Tuple[float, Dict[str, float]]:
+def compute_structured_score(
+    features: Dict[str, Any], 
+    surrogate_path: str = "",
+    ideal_range: Tuple[int, int, int] = (5, 9, 7)
+) -> Tuple[float, Dict[str, float]]:
     """
     Computes a 0-100 structured score using rule-based criteria.
     Blends in surrogate model predictions if available.
@@ -41,12 +45,13 @@ def compute_structured_score(features: Dict[str, Any], surrogate_path: str = "")
     # 2. Experience Score (0-100)
     # ----------------------------------------------------
     years = exp_feat.get("years", 0.0)
-    # Step-function experience score
-    if 5.0 <= years <= 9.0:
+    exp_min, exp_max, exp_peak = ideal_range
+    # Step-function experience score adjusted dynamically based on JD requirements
+    if exp_min <= years <= exp_max:
         step_score = 100.0
-    elif (3.0 <= years < 5.0) or (9.0 < years <= 12.0):
+    elif (max(0.0, exp_min - 2) <= years < exp_min) or (exp_max < years <= exp_max + 3):
         step_score = 70.0
-    elif (0.0 <= years < 3.0) or (12.0 < years <= 15.0):
+    elif (max(0.0, exp_min - 5) <= years < max(0.0, exp_min - 2)) or (exp_max + 3 < years <= exp_max + 6):
         step_score = 40.0
     else:
         step_score = 20.0

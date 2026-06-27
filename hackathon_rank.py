@@ -109,12 +109,13 @@ def main():
     with open(ID_MAP_PATH, "r", encoding="utf-8") as f:
         candidate_ids = json.load(f)
         
-    # Search top 250 candidates
-    k_search = min(250, len(candidate_ids))
+    # Search top 1000 candidates
+    k_search = min(1000, len(candidate_ids))
     retrieved_indices, retrieved_distances = search(jd_embedding, index, k=k_search)
     vector_scores_arr = scores_from_search(retrieved_indices, retrieved_distances, len(candidate_ids))
     
-    retrieved_cids_set = {candidate_ids[idx] for idx in retrieved_indices if idx != -1 and idx < len(candidate_ids)}
+    retrieved_cids = [candidate_ids[idx] for idx in retrieved_indices if idx != -1 and idx < len(candidate_ids)]
+    retrieved_cids_set = set(retrieved_cids)
     timings["First-Stage FAISS Search"] = time.time() - p_start
     print(f"Retrieved top {len(retrieved_cids_set)} candidate IDs from FAISS.")
 
@@ -133,12 +134,60 @@ def main():
             continue
             
         candidates.append(cand)
-        feats = extract_features(cand, jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills))
+        feats = extract_features(cand, jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills), jd_location=jd_reqs.location_preference)
         features_list.append(feats)
         
         is_flagged, reason = run_honeypot_checks(cand)
         if is_flagged:
             flag_reasons[cid] = reason
+            
+    # Multi-Stage Pre-Filtering: Select Top 150 Candidates
+    if len(candidates) > 150:
+        print("Filtering top candidates by experience & location...")
+        pre_scored = []
+        for idx, cand in enumerate(candidates):
+            cid = cand["candidate_id"]
+            feats = features_list[idx]
+            
+            # 1. Experience score using dynamic scorer logic
+            exp_feat = feats.get("experience_features", {})
+            years = exp_feat.get("years", 0.0)
+            exp_min, exp_max, exp_peak = jd_reqs.ideal_experience_range
+            if exp_min <= years <= exp_max:
+                exp_pre_score = 100.0
+            elif (max(0.0, exp_min - 2) <= years < exp_min) or (exp_max < years <= exp_max + 3):
+                exp_pre_score = 70.0
+            elif (max(0.0, exp_min - 5) <= years < max(0.0, exp_min - 2)) or (exp_max + 3 < years <= exp_max + 6):
+                exp_pre_score = 40.0
+            else:
+                exp_pre_score = 20.0
+                
+            # 2. Location match score
+            is_target_location = feats.get("behavioral_features", {}).get("is_pune_noida", False)
+            loc_pre_score = 100.0 if is_target_location else 0.0
+            
+            # 3. Vector search rank score
+            faiss_rank = retrieved_cids.index(cid) if cid in retrieved_cids else len(retrieved_cids)
+            vec_pre_score = 100.0 * (1.0 - (faiss_rank / len(retrieved_cids)))
+            
+            # 4. Skills match score
+            must_have_count = feats.get("skill_features", {}).get("must_have_count", 0)
+            skill_pre_score = min(100.0, must_have_count * 10.0)
+            
+            # Weighted average pre-score
+            pre_score = (
+                vec_pre_score * 0.40 +
+                exp_pre_score * 0.30 +
+                loc_pre_score * 0.15 +
+                skill_pre_score * 0.15
+            )
+            pre_scored.append((pre_score, cand, feats))
+            
+        pre_scored.sort(key=lambda x: -x[0])
+        top_n = pre_scored[:150]
+        
+        candidates = [x[1] for x in top_n]
+        features_list = [x[2] for x in top_n]
             
     timings["Candidate Streaming & Filtering"] = time.time() - p_start
     print(f"Loaded and extracted features for {len(candidates)} matched candidates.")
@@ -243,7 +292,7 @@ def main():
         
     for cand, feats in zip(candidates, features_list):
         cid = cand["candidate_id"]
-        score, breakdown = compute_structured_score(feats, surrogate_path=s_path)
+        score, breakdown = compute_structured_score(feats, surrogate_path=s_path, ideal_range=jd_reqs.ideal_experience_range)
         structured_scores[cid] = score
         structured_breakdowns[cid] = breakdown
         

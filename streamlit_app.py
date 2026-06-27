@@ -361,7 +361,7 @@ def retrieve_top_k(query_text, index, candidate_ids):
     import gc
     gc.collect()
     
-    k_search = min(250, len(candidate_ids))
+    k_search = min(1000, len(candidate_ids))
     retrieved_indices, retrieved_distances = search(jd_embedding, index, k=k_search)
     vector_scores_arr = scores_from_search(retrieved_indices, retrieved_distances, len(candidate_ids))
     
@@ -462,12 +462,12 @@ def score_cross_encoder(candidates, query_text, reranker):
             cross_encoder_scores[c["candidate_id"]] = 50.0
     return cross_encoder_scores
 
-def score_structured(candidates, features_list):
+def score_structured(candidates, features_list, ideal_range=(5, 9, 7)):
     structured_scores = {}
     structured_breakdowns = {}
     for cand, feats in zip(candidates, features_list):
         cid = cand["candidate_id"]
-        score, breakdown = compute_structured_score(feats, surrogate_path=SURROGATE_PATH)
+        score, breakdown = compute_structured_score(feats, surrogate_path=SURROGATE_PATH, ideal_range=ideal_range)
         structured_scores[cid] = score
         structured_breakdowns[cid] = breakdown
     return structured_scores, structured_breakdowns
@@ -531,11 +531,62 @@ def run_interactive_pipeline(
         if not cand:
             continue
         candidates.append(cand)
-        feats = extract_features(cand, jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills))
+        feats = extract_features(cand, jd_skills=(jd_reqs.must_have_skills, jd_reqs.nice_to_have_skills), jd_location=jd_reqs.location_preference)
         features_list.append(feats)
         is_flagged, reason = run_honeypot_checks(cand)
         if is_flagged:
             flag_reasons[cid] = reason
+            
+    # ----------------------------------------------------
+    # Multi-Stage Pre-Filtering: Select Top 150 Candidates
+    # ----------------------------------------------------
+    if len(candidates) > 150:
+        if status_box:
+            status_box.update(label="⚡ Filtering top candidates by experience & location...", state="running")
+        pre_scored = []
+        for idx, cand in enumerate(candidates):
+            cid = cand["candidate_id"]
+            feats = features_list[idx]
+            
+            # 1. Experience score using dynamic scorer logic
+            exp_feat = feats.get("experience_features", {})
+            years = exp_feat.get("years", 0.0)
+            exp_min, exp_max, exp_peak = jd_reqs.ideal_experience_range
+            if exp_min <= years <= exp_max:
+                exp_pre_score = 100.0
+            elif (max(0.0, exp_min - 2) <= years < exp_min) or (exp_max < years <= exp_max + 3):
+                exp_pre_score = 70.0
+            elif (max(0.0, exp_min - 5) <= years < max(0.0, exp_min - 2)) or (exp_max + 3 < years <= exp_max + 6):
+                exp_pre_score = 40.0
+            else:
+                exp_pre_score = 20.0
+                
+            # 2. Location match score
+            is_target_location = feats.get("behavioral_features", {}).get("is_pune_noida", False)
+            loc_pre_score = 100.0 if is_target_location else 0.0
+            
+            # 3. Vector search rank score
+            faiss_rank = retrieved_cids.index(cid) if cid in retrieved_cids else len(retrieved_cids)
+            vec_pre_score = 100.0 * (1.0 - (faiss_rank / len(retrieved_cids)))
+            
+            # 4. Skills match score
+            must_have_count = feats.get("skill_features", {}).get("must_have_count", 0)
+            skill_pre_score = min(100.0, must_have_count * 10.0)
+            
+            # Weighted average pre-score
+            pre_score = (
+                vec_pre_score * 0.40 +
+                exp_pre_score * 0.30 +
+                loc_pre_score * 0.15 +
+                skill_pre_score * 0.15
+            )
+            pre_scored.append((pre_score, cand, feats))
+            
+        pre_scored.sort(key=lambda x: -x[0])
+        top_n = pre_scored[:150]
+        
+        candidates = [x[1] for x in top_n]
+        features_list = [x[2] for x in top_n]
             
     if status_box:
         status_box.update(label="🧠 Loading ML models (MPNet & CrossEncoder)...", state="running")
@@ -555,7 +606,7 @@ def run_interactive_pipeline(
     
     if status_box:
         status_box.update(label="📊 Computing Structured & Surrogate scores...", state="running")
-    structured_scores, structured_breakdowns = score_structured(candidates, features_list)
+    structured_scores, structured_breakdowns = score_structured(candidates, features_list, ideal_range=jd_reqs.ideal_experience_range)
     
     vector_scores = {}
     for idx, cid in enumerate(candidate_ids):
@@ -761,10 +812,15 @@ with tab1:
                 results = st.session_state.pipeline_results
                 p_time = st.session_state.get("pipeline_time", 0.0)
                 
+                try:
+                    p_time_str = f"{float(p_time):.2f} s"
+                except (ValueError, TypeError):
+                    p_time_str = f"{p_time} s"
+                
                 # Show runtime metrics in columns
                 met_col1, met_col2 = st.columns(2)
                 with met_col1:
-                    st.metric(label="Pipeline Runtime", value=f"{p_time:.2f} s", delta="CPU-only mode")
+                    st.metric(label="Pipeline Runtime", value=p_time_str, delta="CPU-only mode")
                 with met_col2:
                     st.metric(label="Ranked Pool Size", value=f"{len(results)} profiles")
                 
