@@ -62,35 +62,98 @@ This query expansion ensures that the bi-encoder embedding captures all semantic
 
 ## 2. 🔍 Component 2: Dense Semantic Search & FAISS (`src/vector_index.py`)
 
-### What is Semantic Search?
-Lexical search (like SQL `LIKE` or basic keyword matching) fails when candidates use synonyms (e.g., matching a candidate who writes "Deep Learning" against a JD asking for "Neural Networks"). Semantic search resolves this by encoding text into a dense vector space:
-1. A **Bi-Encoder** (`all-MiniLM-L6-v2`) projects candidate resumes and the job description query into 384-dimensional dense vectors.
-2. The distance between these vectors (using Cosine Similarity) represents their semantic similarity.
+### 🤖 Deep-Dive: What is `all-MiniLM-L6-v2` and How Does It Work?
+The `all-MiniLM-L6-v2` model is a distilled Transformer-based **Bi-Encoder** designed to map text sentences and paragraphs to a 384-dimensional dense vector space. 
 
-### What is FAISS and Why is it used?
-Comparing a query vector against 100,000 candidate vectors sequentially using a linear scan is slow ($O(N)$ complexity, taking several seconds on CPU).
-**FAISS (Facebook AI Similarity Search)** is a library optimized for dense vector similarity search:
-* It stores vectors in a highly optimized memory layout.
-* It uses index structures (like Flat L2 or Hierarchical Navigable Small World graphs) to perform nearest-neighbor searches in $O(\log N)$ time.
-* It retrieves the top 1,000 candidate IDs from a pool of 100,000 in **under 25 milliseconds**.
+```
+                                  [all-MiniLM-L6-v2 Flow]
+                                  
+[Candidate Resume Text] ──► [Tokenization] ──► [6 Transformer Layers] ──► [Mean Pooling] ──► [384D Vector]
+                                                     │
+                                                     ▼
+                                          [Token-Level Embeddings]
+```
 
-### How is it used?
-1. During system startup, the pre-computed index (`models/faiss_index.bin`) is loaded into memory using `load_index()`.
-2. The parsed Job Description is encoded into a 384-dimensional vector.
-3. FAISS performs an index query to retrieve the top **1,000** candidate IDs.
+* **BERT-Based Architecture:** It is derived from the BERT (Bidirectional Encoder Representations from Transformers) family. However, BERT has 12 layers (`base`) or 24 layers (`large`). MiniLM distillates (compresses) the self-attention relations from a larger BERT teacher model into a small, fast **6-layer** ("L6") network.
+* **Mean Pooling:** When text is sent through the transformer, the model outputs an embedding vector for *each individual token* (word-piece). To represent the entire document as a single vector, **Mean Pooling** takes the average of all token vectors while ignoring padding tokens. The result is a single 384-dimensional floating-point array (vector) representing the semantic gist of the text.
+
+---
+
+### 🌐 Deep-Dive: FAISS Index Types (Flat L2 vs. HNSW Graphs)
+When querying dense vectors, we search for candidate vectors nearest to our query vector. The choice of index determines the search algorithm:
+
+#### A. Flat L2 / Flat IP (Inner Product) Index (Exact Search)
+A Flat index does not compress or cluster the vectors. It simply stores the raw 384-dimensional vectors in a contiguous memory block.
+* **How it works:** When a query vector is input, the engine performs a brute-force distance calculation (Euclidean L2 or Inner Product dot product) against **every single vector** in the index.
+* **Search Complexity:** $O(N \cdot d)$ where $N$ is candidate size (100,000) and $d$ is dimensions (384).
+* **Representation (Flat IP Dot Product):**
+  ```
+  Query Vector [q1, q2... qd] ── Dot Product ──► [ Candidate 1 Vector ] ──► Score 0.89
+                              ── Dot Product ──► [ Candidate 2 Vector ] ──► Score 0.42
+                              ── Dot Product ──► [ Candidate 3 Vector ] ──► Score 0.95 (Best)
+  ```
+* **Why we use Flat IP:** Since our database size is $N = 100,000$, a brute-force dot product on normalized vectors (equivalent to Cosine Similarity) is extremely fast on modern CPUs, completing in **24.8 milliseconds**. It guarantees **100% precision (Recall@K = 1.0)**, avoiding any approximations.
+
+#### B. HNSW (Hierarchical Navigable Small World) Index (Approximate Search)
+For millions of vectors, brute-force search becomes too slow. HNSW solves this by creating a multi-layer graph structures similar to a skip-list.
+* **How it works:**
+  1. The top layers have sparse nodes with long-range connections.
+  2. The search starts at the top layer to find the rough neighborhood of the query.
+  3. The search drops to the next layer down to search with finer connections, repeating until it reaches the dense bottom graph.
+* **Search Complexity:** $O(\log N)$
+* **Representation:**
+  ```
+  Layer 2 (Express)   [Node A] ─────────────────────────────► [Node B] (Quick hop)
+                           │                                       │
+                           ▼                                       ▼
+  Layer 1 (Regional)  [Node A] ────────► [Node C] ───────────────► [Node B] (Medium hop)
+                           │                  │                    │
+                           ▼                  ▼                    ▼
+  Layer 0 (Local)     [Node A] ─► [Node D] ─► [Node C] ─► [Node E] ─► [Node B] (Detailed check)
+  ```
+* **Trade-off:** HNSW is incredibly fast for massive datasets, but consumes **3x to 4x more RAM** to store graph connections and yields **approximate** (imperfect) recall. Given our strict 1.0 GB RAM constraint, Flat IP is the optimal and safest choice.
+
+### How FAISS is used in CVHunt
+1. During startup, the Flat IP index (`models/faiss_index.bin`) is loaded.
+2. The expanded JD query text is encoded into a 384-dimensional vector.
+3. FAISS performs an exact Inner Product search over the 100,000 candidates and retrieves the top **1,000** candidate IDs in milliseconds.
 
 ---
 
 ## 3. 📝 Component 3: Lexical matching via Okapi BM25 Scorer
 
-### Why is it used?
-Dense semantic search is excellent for concepts, but it can struggle with **exact terminology** (e.g., separating "Python 2.7" from "Python 3.11", or matching specific libraries like "Milvus" or "FAISS"). 
-**Okapi BM25** is a state-of-the-art bag-of-words retrieval function that ranks documents based on term frequency and document length normalization (TF-IDF variant). It ensures that candidates who explicitly mention the precise required technologies are ranked higher.
+### 🔬 Deep-Dive: What is BM25 and How Does It Work?
+BM25 (often called Okapi BM25) is a ranking function used by search engines to estimate the relevance of a document to a given search query. It was developed in the 1990s at London's City University as an improvement over classical TF-IDF.
 
-### How is it used?
-1. The candidates are tokenized into lowercased terms.
-2. BM25 scores are calculated for the top 1,000 candidates retrieved by FAISS.
-3. This score is normalized to a 0–100 scale and contributes **20%** of the intermediate score.
+#### The Mathematical Formula
+For a query $Q$ containing search terms $q_1, q_2, \dots, q_n$, the BM25 score of a candidate document $D$ is:
+$$Score(D, Q) = \sum_{i=1}^{n} \text{IDF}(q_i) \cdot \frac{f(q_i, D) \cdot (k_1 + 1)}{f(q_i, D) + k_1 \cdot \left(1 - b + b \cdot \frac{|D|}{\text{avgdl}}\right)}$$
+
+Where:
+* $f(q_i, D)$ is the **term frequency** (how many times keyword $q_i$ appears in the candidate's resume).
+* $|D|$ is the length of the candidate's resume text, and $\text{avgdl}$ is the average resume length across all candidates.
+* $k_1$ is a tuning parameter controlling **term frequency saturation** (standard value is `1.2` to `2.0`).
+* $b$ is a tuning parameter controlling **document length normalization** (standard value is `0.75`).
+
+#### Why BM25 is superior to TF-IDF (Anti-Keyword Stuffing)
+1. **Term Frequency Saturation ($k_1$):** In simple TF-IDF, if a candidate writes the word "PyTorch" 20 times in a fake resume, their score grows linearly. In BM25, the $k_1$ parameter caps term frequency influence. After a keyword appears 2 or 3 times, the score curve flattens (saturates), meaning writing a keyword 100 times yields virtually the same score as writing it 3 times.
+2. **Document Length Normalization ($b$):** Candidates with extremely long, wordy resumes are penalized because $b$ scales down the score if the document length $|D|$ is much larger than the average. This ensures concise, high-density resumes are favored over long, padded resumes.
+
+```
+Score Benefit ▲
+              │                 Simple TF-IDF (No Saturation)
+              │               ┌───────────────────/
+              │              ┌┘
+              │            ┌─┘  Okapi BM25 (Saturates at k1)
+              │         ┌──┴──────────────────────────────────
+              │       ┌─┘
+              │     ┌─┘
+              │   ┌─┘
+              └───┴──────────────────────────────────────────► Term Frequency
+```
+
+### How BM25 is used in CVHunt
+We run Okapi BM25 (implemented via the `rank_bm25` package) over the combined text of the candidate's headline, summary, skills list, and career histories. This scores exact terminology matches on the 1000 FAISS candidates, contributing **20%** of the intermediate score.
 
 ---
 
@@ -112,32 +175,65 @@ This score is computed for all 1000 candidates and contributes **45%** of the in
 
 ## 5. 🧠 Component 5: Gradient Boosting Surrogate Model (`models/surrogate_model.pkl`)
 
-### Why is it used?
-Rule-based scoring systems are discrete step-functions, which create "cliff edges" in rankings (e.g., a candidate with 59 days notice period gets no penalty, but 61 days notice triggers a −20% penalty). 
-A **Surrogate Model** (Gradient Boosting Regressor) is trained to learn the mapping of candidate features to final structured scores. It serves two purposes:
-1. **Continuous Interpolation:** It smooths out hard threshold cliffs, creating soft transitions in scores.
-2. **Generalization:** It learns feature correlations, allowing it to predict robust alignment scores for candidates with incomplete or noisy profile data.
+### 📦 Deep-Dive: What is Python's `pickle`?
+In Python, **Pickling** is the process of converting a live, in-memory object hierarchy (like a trained machine learning model, a dictionary, or a custom class) into a serialized byte stream. This byte stream can be saved to a file (`.pkl`) or transmitted over a network.
+* **Unpickling:** The inverse operation where a byte stream is parsed and converted back into a live Python object in memory.
+* **Environment Reproducibility:** Since a pickle file contains binary instructions, it is highly sensitive to line-ending translations. Storing it under Windows without `.gitattributes` binary settings results in Git converting `\n` to `\r\n` (CRLF), which corrupts the bytecode sequence and causes loading to fail. We protect all binary assets using strict `.gitattributes` rules.
 
-### How is it used?
-* We use a standard Python `pickle` saved estimator (`models/surrogate_model.pkl`).
-* In offline mode, GBR is trained using `train_surrogate.py` on heuristic scores to act as a smoothing engine.
-* **Recruiter-in-the-Loop Extensibility:** The script is engineered to accept an `OPENAI_API_KEY`. If provided, it queries `gpt-4o-mini` to score candidate resumes. The GBR then trains on these expert recruiter scores, adjusting the weights of features (like Title Consistency vs. Education) to match the recruiter's subjective scoring preference.
+---
+
+### 🌲 Deep-Dive: What is a Gradient Boosting Regressor (GBR)?
+A **Gradient Boosting Regressor** is an ensemble machine learning model that makes predictions by combining a series of weak decision trees.
+
+```
+                                [GBR Ensemble Flow]
+                                
+Input Features ──► [Tree 1 (Predicts Base)] ──► Residual Error ──► [Tree 2 (Predicts Error)] ──► Prediction
+```
+
+* **Boosting Mechanism:** Unlike Random Forests (where trees are built independently in parallel), Gradient Boosting builds trees **sequentially**. Each new tree is trained to predict the **residual errors** (errors/mistakes) of all previously combined trees. 
+* **Gradient Descent:** The model minimizes a loss function (like Mean Squared Error) by adding trees that point in the direction of the negative gradient (hence "Gradient Boosting").
+* **Feature Importance:** During training, GBR evaluates which candidate features (e.g. title consistency, must-have skills, product ratio) most frequently reduce splitting impurity. In our surrogate model, **Title Consistency** and **Current Role Relevance** emerge as the most important features (`>75%` combined importance).
+
+### How GBR is used in CVHunt
+We train a `GradientBoostingRegressor(n_estimators=100, max_depth=3, learning_rate=0.1)` on 500 sampled candidates. The features input to GBR include must-have skills, experience years, product ratio, title consistency, and response rates.
+The GBR acts as a smooth surrogate proxy. Its continuous predictions are blended **50%** with the rule-based structured scorer to prevent rigid cutoff cliffs in ranking.
+
+* **LLM-Annotation Path:** While the default offline mode trains on heuristic targets, the script (`scripts/train_surrogate.py`) integrates with `gpt-4o-mini` if an API key is present. This allows the model to learn a recruiter's subjective preference curve from real LLM annotations.
 
 ---
 
 ## 6. 🔀 Component 6: Deep Semantic Reranking via Cross-Encoder (`src/semantic_scorer.py`)
 
-### What is a Cross-Encoder and Why is it used?
-Bi-encoders (like the one used for FAISS) are "retrievers"—they encode the JD and candidate profiles *independently* into single vectors. This loses the fine-grained token-level interactions.
-A **Cross-Encoder** is a "reranker"—it processes the JD and candidate profile *simultaneously* inside the transformer model, performing attention over both texts together. This yields far more accurate similarity scores.
+### 🚀 Deep-Dive: `all-mpnet-base-v2` Semantic Scorer
+The `all-mpnet-base-v2` model is a high-capacity sentence transformer based on Microsoft's **MPNet** (Masked and Permuted Pre-training) architecture.
+* **How it works:** MPNet combines the advantages of Masked Language Modeling (like BERT, which sees context bi-directionally but misses dependencies between masked tokens) and Permuted Language Modeling (like XLNet, which models dependencies but suffers from position discrepancy). It outputs **768-dimensional** embeddings.
+* **Why we use it:** It is the top-performing general semantic similarity model on HuggingFace sentence-transformers leaderboards. Because of its large parameter count and 768-D representation, it captures highly complex semantic relationships in candidate summaries and job descriptions that smaller models (like MiniLM) miss. It contributes **20%** of the final rank score.
 
-### Funnel Optimization (Why only 150 candidates?)
-Cross-Encoders require a full transformer forward pass for every candidate-query pair. Running a Cross-Encoder over all 100,000 candidates (or even 1,000) on CPU would take several minutes, violating our 5-minute execution limit.
-**Our Two-Pass funnelling optimization solves this:**
-1. FAISS vector search retrieves the top **1,000** candidates.
-2. Structured Scoring and BM25 are computed on all 1,000 candidates (taking ~12 seconds).
-3. The candidates are ranked by an intermediate score, and pruned down to the top **150**.
-4. The heavy Cross-Encoder and MPNet Semantic Scorer are executed **only on these top 150 candidates**, keeping the runtime under **225 seconds**.
+---
+
+### 🔀 Deep-Dive: `MiniLM-L-6-v2` Cross-Encoder Reranker
+A **Cross-Encoder** is structurally different from a Bi-Encoder. Instead of encoding the JD and candidate resume separately, it processes them **together** as a single combined string.
+
+```
+                              [Bi-Encoder vs. Cross-Encoder]
+
+A. Bi-Encoder Funnel:
+[JD Text] ──────────► [Encoder] ──► Vector A ┐
+                                            ├──► Cosine Similarity (Fast, Independent)
+[Candidate Text] ───► [Encoder] ──► Vector B ┘
+
+B. Cross-Encoder Funnel:
+[JD Text] + [Candidate Text] ──► [Joint Encoder (Cross-Attention)] ──► Relevance Score (Slow, Dependent)
+```
+
+* **Token-Level Self-Attention:** Inside the Cross-Encoder transformer, the attention mechanism operates over *all tokens simultaneously*. Every word in the Job Description can directly attend to and weight every word in the candidate's resume. It captures exact context (e.g., distinguishing between "designed RAG pipelines using PyTorch" and "wanted to learn PyTorch to build RAG").
+* **Why we use it:** Rerankers are highly precise but computationally expensive. By running `ms-marco-MiniLM-L-6-v2` Cross-Encoder **only on the top 150 candidates** in the final stage, we achieve the precision of joint transformer attention while staying safely within our CPU execution runtime limit.
+
+### How the Funnel Optimization Works
+We apply a strict **Two-Pass Funnel**:
+1. **Pass 1 (Retrieval & Filter):** FAISS retrieves the top **1,000** candidate IDs. The Structured Scorer and BM25 are computed on all 1,000 candidates (taking ~12 seconds). The pool is pruned down to the top **150** based on the intermediate combined score.
+2. **Pass 2 (ML Scoring):** The expensive MPNet Semantic Scorer and MiniLM Cross-Encoder are run **only on the top 150 candidates** (taking ~180 seconds). The scores are blended, and the top 100 are output.
 
 ---
 
