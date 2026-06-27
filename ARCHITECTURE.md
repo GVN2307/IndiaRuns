@@ -206,3 +206,25 @@ os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
 ```
 at the entry point of the application, we force PyTorch and Transformers to load model files directly from the local cache. Model loading time is reduced from **over 3 minutes to less than 1.1 seconds**, and the total program runtime drops to **~96 seconds (1.6 minutes)**, making the pipeline highly performant and compliant with the compute budget constraints.
+
+---
+
+## 6. Streamlit Cloud Web App & Memory Optimization
+
+To present the scoring system in an interactive dashboard, we built and deployed a web interface using Streamlit. However, Streamlit Community Cloud enforces a strict **1.0 GB RAM limit** per application container. Under a naive approach (loading all models and the 100K candidates database at startup), memory consumption reaches 1.3 GB, leading to instant container crashes (OOM).
+
+To achieve 100% stability, the architecture was modified with the following memory-centric designs:
+
+### 📡 Lazy Database Streaming (0 MB Startup Footprint)
+* **Problem**: Storing all 100,000 parsed candidates in memory requires ~350MB of RAM.
+* **Solution**: Removed startup database loaders. When a user runs a search, the FAISS engine returns 250 candidate IDs. We open a stream of `candidates.jsonl.gz` using Python's `gzip` reader. We scan lines as raw strings and check if a candidate's ID substring matches one of our target IDs. We only parse the JSON of matching records, avoiding loading the rest.
+* **Outcome**: Startup candidate database RAM footprint dropped to **0 MB**. Streaming takes only ~1.5 seconds.
+
+### 🗑️ First-Stage Model Unloading
+* **Problem**: The first-stage sentence transformer (`all-MiniLM-L6-v2`) occupies ~120MB of RAM. If we keep it loaded while loading the second-stage scoring model (`all-mpnet-base-v2`) and the Cross-Encoder model, we exceed 1.0 GB.
+* **Solution**: As soon as first-stage FAISS search completes and returns candidate IDs, we delete the first-stage embedding model reference and call `gc.collect()`.
+* **Outcome**: Reclaims ~120MB of RAM immediately, providing a safety margin for the heavier second-pass scoring.
+
+### 🔌 Self-Healing Binary Downloader
+* **Problem**: Binary files like the FAISS index (`faiss_index.bin` ~153MB) cannot be pushed to GitHub due to size limitations, but are required by Streamlit at startup.
+* **Solution**: The application uses a custom HTTP download script. If the binary file is missing, it sends a download request to a Google Drive share link. Since Google Drive shows a "large file virus warning page" for files >100MB, the downloader automatically parses the warning page, extracts the hidden verification token and the form action URL, sets up cookie persistence, and downloads the file automatically.

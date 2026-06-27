@@ -80,4 +80,27 @@ We have successfully completed all Phase 1-6 updates to implement CrossEncoder r
 * **Aggregation, Sorting & Reasoning**: 0.133 seconds
 * **Total Runtime**: **92.940 seconds**
 
+---
+
+## Streamlit Cloud Deployment & Memory Optimization Overhaul (V4)
+
+In this phase, we prepared and deployed the candidate discovery and ranking pipeline as a public Streamlit application hosted on Streamlit Community Cloud. Due to the strict **1.0 GB RAM limit** of the hosting container, we performed major architectural and memory optimization cleanups to guarantee stability and prevent Out-Of-Memory (OOM) crashes:
+
+### 1. Memory Optimization & OOM Prevention
+* **Lazy Database Streaming (Saved ~350MB RAM):** Removed the startup candidate database caching logic (`load_candidates_db()`). Instead of keeping all 100,000 profile records in memory, candidate profiles are now streamed dynamically from `data/candidates.jsonl.gz` inside `run_interactive_pipeline` using a fast raw-string index scanner (`"candidate_id": "CAND_..."`). This extracts only the 250 FAISS-retrieved profiles on-the-fly, reducing startup database RAM footprint to **0 MB**.
+* **First-Stage Model Memory Freeing (Saved ~120MB RAM):** Immediately after executing the FAISS search, the first-stage embedding model (`all-MiniLM-L6-v2`) is deleted from memory, and `gc.collect()` is run to reclaim ~120MB of RAM before loading the heavier second-stage scoring models.
+* **Garbage Collection Integration:** Explicitly triggered `gc.collect()` at the end of every pipeline run to instantly clean up temporary references and keep memory well under the 1.0 GB limit.
+
+### 2. Self-Healing FAISS Index Downloader
+* Because the binary FAISS index (`faiss_index.bin` ~153MB) is gitignored due to size, we implemented a robust, warning-bypass downloader to pull it from Google Drive.
+* The downloader dynamically parses Google Drive's virus scan warning forms for large files (>100MB), extracts the hidden form action URLs, confirm tokens, and session identifiers, and downloads the binary file successfully using opener cookie sessions.
+* Added size checks (>100MB) to prevent loop errors or loading corrupted HTML warning pages into the FAISS engine.
+
+### 3. HTML/CSS Rendering Fixes
+* In markdown rendering, any indented block (4+ spaces) is parsed as a code block. When technical skills badges or candidate table rows were concatenated with blank lines or indentation, the markdown engine parsed them as raw HTML code blocks.
+* We converted dynamic HTML string generation (candidate list rows and matching skills badges) to use single contiguous inline strings without newlines or indentation. This guarantees the markdown engine parses and renders them as beautiful, styled HTML components.
+
+### 4. Dependency Updates
+* Added `torchvision` to `requirements.txt` to suppress optional import warning tracebacks printed in the Streamlit logs by `transformers`.
+
 

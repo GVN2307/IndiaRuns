@@ -97,7 +97,8 @@ CVHunt aggregates four scoring engines to rank candidates:
 ## 3. Advanced Filtering & Gating
 
 * **Graduated Must-Have Skill Gating**: Candidates are evaluated on 20 critical must-have skills (e.g. embeddings, retrieval, FAISS, evaluation metrics).
-  * $< 3$ must-haves: **Disqualified** (final score = 0.0)
+  * $< 2$ must-haves: **Disqualified** (final score = 0.0)
+  * $< 3$ must-haves: final score $\times 0.15$
   * $< 6$ must-haves: final score $\times 0.3$
   * $< 9$ must-haves: final score $\times 0.6$
   * $< 12$ must-haves: final score $\times 0.8$
@@ -144,7 +145,7 @@ Execute the ranker script using the precomputed artifacts:
 
 ## 5. Compute Requirements
 
-* **Memory**: $\leq$ 16 GB RAM
+* **Memory**: $\leq$ 16 GB RAM (runs in under 1.0 GB RAM on Streamlit Community Cloud).
 * **CPU Only**: Run fully on CPU. Setting offline variables ensures loading model parameters is instantaneous:
   ```python
   os.environ["HF_HUB_OFFLINE"] = "1"
@@ -161,3 +162,17 @@ The results are output to `output/submission.csv` containing columns: `candidate
   * Ranks 11-50: **70.0 – 95.0**
   * Ranks 51-100: **30.0 – 70.0**
 * **Reasoning Justification**: Dynamically formatted using rank-consistent tone prefixes (`Exceptional fit`, `Strong fit`, `Partial fit`), highlighting years of experience, key matching skills, behavioral signals, and honest recruitment concerns.
+
+---
+
+## 7. Streamlit Cloud Web Dashboard
+
+We provide a memory-optimized recruiter dashboard deployed at **[indiaruns.streamlit.app](https://indiaruns.streamlit.app/)**.
+
+### ⚙️ Memory-Limit Design (1.0 GB RAM Constraints)
+Because Streamlit Community Cloud has a hard 1.0 GB container RAM limit, we implemented the following performance constraints:
+1. **Lazy Database Streaming:** Instead of loading all 100,000 candidate profiles into memory at startup (which uses 350MB+), candidate profiles are scanned and parsed on-the-fly from the gzip file `data/candidates.jsonl.gz` inside the query thread. We use a fast raw-string index scan to extract only the 250 profiles matching the first-stage FAISS search.
+2. **First-Stage Model Unloading:** Immediately after retrieving candidate IDs from the FAISS vector index, the first-stage embedding model (`all-MiniLM-L6-v2`) is deleted and memory is reclaimed via `gc.collect()` before starting the heavier second-stage scoring modules.
+3. **Garbage Collection:** We trigger garbage collection after every discovery search thread executes to prevent memory leaks.
+4. **Self-Healing Index Downloader:** Since `faiss_index.bin` (~153MB) is too large for GitHub pushes, the application includes a direct download engine that automatically parses Google Drive's virus scan warning forms and downloads the binary file on first load.
+5. **Dedent formatting wrapper:** To prevent dynamic HTML tables and skills badges from rendering as plain text code blocks in markdown, all multi-line markdown rendering is automatically dedented.

@@ -11,6 +11,7 @@ team_members:
     role: "Student"
 
 github_repo: "https://github.com/GVN2307/IndiaRuns"
+sandbox_link: "https://indiaruns.streamlit.app/"
 
 reproduce_command: "python hackathon_rank.py --candidates data/candidates.jsonl.gz --jd data/job_description.md --output output/submission.csv --embeddings models/candidate_embeddings.npy --index models/faiss_index.bin"
 
@@ -31,7 +32,7 @@ ai_usage_summary: |
   Used Gemini for code synthesis, architecture planning, and structured ranking logic. No candidate data was shared with external LLMs during ranking.
 
 methodology_summary: |
-  3-score hybrid ranker blending Dense Semantic similarity, Rule-based Structured features (with Gaussian experience decay and product/consulting biases), and FAISS retrieval index scores. Includes a robust 6-tier honeypot detector to cap impossible profiles at score 20, deterministic tie-breaking, and LLM-surrogate prediction blending.
+  3-score hybrid ranker blending Dense Semantic similarity, Rule-based Structured features (with Gaussian experience decay and product/consulting biases), and FAISS retrieval index scores. Includes a robust 6-tier honeypot detector to cap impossible profiles at score 20, deterministic tie-breaking, and LLM-surrogate prediction blending. The system is also equipped with a highly optimized Streamlit Community Cloud web dashboard that executes in real-time under a strict 1.0 GB RAM limit using lazy database streaming and dynamic model unloading.
 
 declarations:
   read_submission_spec: true
