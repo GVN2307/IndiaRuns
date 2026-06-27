@@ -273,48 +273,61 @@ if os.path.exists(INDEX_PATH):
         pass
 
 if not is_valid_index:
-    st.warning("⚠️ **FAISS Index File (`models/faiss_index.bin`) is missing or invalid!**")
-    st.markdown("""
-    Because the FAISS index is around 153MB, it is gitignored and not pushed to GitHub.
+    DEFAULT_GD_URL = "https://drive.google.com/file/d/1UN0KW7qsOLIlu4GY_H9vOgqXlRURtQkv/view?usp=sharing"
+    success_auto = False
     
-    **To run this locally:**
-    You already have the index in your local `models/` directory, so running `streamlit run streamlit_app.py` locally will work out-of-the-box!
-    
-    **To deploy and run on Streamlit Cloud:**
-    1. Upload your local `models/faiss_index.bin` file to any cloud storage (e.g. Dropbox, Google Drive, OneDrive, or GCP Storage).
-    2. Paste your Google Drive sharing link (or Dropbox/OneDrive direct link) below.
-    3. Click **Download FAISS Index** to download it directly into the app's container.
-    """)
-    
-    download_url = st.text_input("Cloud URL for faiss_index.bin (Google Drive sharing links are supported)", placeholder="https://drive.google.com/... or https://dl.dropboxusercontent.com/...")
-    if st.button("📥 Download FAISS Index", use_container_width=True):
-        if download_url:
-            with st.spinner("Downloading FAISS index (153MB)... This might take a minute."):
-                try:
-                    download_large_file(download_url, INDEX_PATH)
-                    file_size = os.path.getsize(INDEX_PATH)
-                    if file_size > 100 * 1024 * 1024:
-                        st.success("FAISS Index downloaded successfully! Re-running dashboard...")
-                        st.rerun()
-                    else:
-                        if os.path.exists(INDEX_PATH):
-                            try:
-                                os.remove(INDEX_PATH)
-                            except Exception:
-                                pass
-                        st.error(f"⚠️ **Download Failed: The downloaded file is too small ({file_size / (1024*1024):.2f} MB).**")
-                        st.markdown("""
-                        This usually happens if Google Drive requires authentication (restricted link) or blocked the automated request.
-                        
-                        **To fix this:**
-                        1. Make sure your Google Drive file sharing setting is set to **"Anyone with the link"** (public).
-                        2. If Google Drive continues to block the download, try uploading the file to **Dropbox** (direct link with `dl=1`) or **OneDrive** instead, which do not throttle downloads.
-                        """)
-                except Exception as e:
-                    st.error(f"Failed to download index: {e}")
-        else:
-            st.error("Please enter a valid URL.")
-    st.stop()
+    # Try automatic download first
+    with st.spinner("📥 FAISS Index File is missing. Automatically downloading index (153MB) from Google Drive..."):
+        try:
+            download_large_file(DEFAULT_GD_URL, INDEX_PATH)
+            file_size = os.path.getsize(INDEX_PATH)
+            if file_size > 100 * 1024 * 1024:
+                success_auto = True
+                st.success("FAISS Index downloaded successfully! Re-running dashboard...")
+                st.rerun()
+            else:
+                if os.path.exists(INDEX_PATH):
+                    try:
+                        os.remove(INDEX_PATH)
+                    except Exception:
+                        pass
+        except Exception as e:
+            pass
+            
+    if not success_auto:
+        st.warning("⚠️ **FAISS Index File (`models/faiss_index.bin`) is missing or invalid!**")
+        st.markdown("""
+        Because the FAISS index is around 153MB, it is gitignored and not pushed to GitHub.
+        Automatic download failed. Please provide a manual download link.
+        
+        **To fix this:**
+        1. Make sure your Google Drive file sharing setting is set to **"Anyone with the link"** (public).
+        2. Paste your Google Drive sharing link (or Dropbox/OneDrive direct link) below.
+        3. Click **Download FAISS Index** to download it directly into the app's container.
+        """)
+        
+        download_url = st.text_input("Cloud URL for faiss_index.bin", placeholder="https://drive.google.com/... or https://dl.dropboxusercontent.com/...")
+        if st.button("📥 Download FAISS Index", use_container_width=True):
+            if download_url:
+                with st.spinner("Downloading FAISS index (153MB)... This might take a minute."):
+                    try:
+                        download_large_file(download_url, INDEX_PATH)
+                        file_size = os.path.getsize(INDEX_PATH)
+                        if file_size > 100 * 1024 * 1024:
+                            st.success("FAISS Index downloaded successfully! Re-running dashboard...")
+                            st.rerun()
+                        else:
+                            if os.path.exists(INDEX_PATH):
+                                try:
+                                    os.remove(INDEX_PATH)
+                                except Exception:
+                                    pass
+                            st.error(f"⚠️ **Download Failed: The downloaded file is too small ({file_size / (1024*1024):.2f} MB).**")
+                    except Exception as e:
+                        st.error(f"Failed to download index: {e}")
+            else:
+                st.error("Please enter a valid URL.")
+        st.stop()
 
 # Warm up data loading in background
 with st.spinner("Initializing FAISS index (100,000 candidates)..."):
