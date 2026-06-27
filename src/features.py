@@ -1,6 +1,6 @@
 import re
 from datetime import datetime
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from src.config import (
     MUST_HAVE_SKILLS, NICE_TO_HAVE_SKILLS, PRODUCT_COMPANIES, CONSULTING_COMPANIES, 
     PROFICIENCY_WEIGHTS, REFERENCE_DATE, NON_TECH_TITLE_PATTERN, parse_date
