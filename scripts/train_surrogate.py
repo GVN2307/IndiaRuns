@@ -7,6 +7,7 @@ import numpy as np
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.model_selection import train_test_split
 import joblib
+import pickle
 
 # Add base directory to path
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -182,7 +183,8 @@ def main():
     # Save model
     print(f"\nSaving model to {SURROGATE_PATH}...")
     os.makedirs(os.path.dirname(SURROGATE_PATH), exist_ok=True)
-    joblib.dump(reg, SURROGATE_PATH)
+    with open(SURROGATE_PATH, "wb") as f:
+        pickle.dump(reg, f)
     
     # Save feature importances to text file
     importance_path = os.path.join(os.path.dirname(SURROGATE_PATH), "feature_importances.txt")

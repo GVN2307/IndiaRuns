@@ -1,6 +1,6 @@
 import math
 import os
-import joblib
+import pickle
 from typing import Dict, Any, Tuple
 
 # Global variable to cache the surrogate model
@@ -10,7 +10,8 @@ def get_surrogate_model(model_path: str):
     global _surrogate_model
     if _surrogate_model is None and os.path.exists(model_path):
         try:
-            _surrogate_model = joblib.load(model_path)
+            with open(model_path, "rb") as f:
+                _surrogate_model = pickle.load(f)
         except Exception as e:
             print(f"Warning: Failed to load surrogate model: {e}")
     return _surrogate_model
