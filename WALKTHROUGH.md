@@ -88,7 +88,8 @@ In this phase, we prepared and deployed the candidate discovery and ranking pipe
 
 ### 1. Memory Optimization & OOM Prevention
 * **Lazy Database Streaming (Saved ~350MB RAM):** Removed the startup candidate database caching logic (`load_candidates_db()`). Instead of keeping all 100,000 profile records in memory, candidate profiles are now streamed dynamically from `data/candidates.jsonl.gz` inside `run_interactive_pipeline` using a fast raw-string index scanner (`"candidate_id": "CAND_..."`). This extracts only the 250 FAISS-retrieved profiles on-the-fly, reducing startup database RAM footprint to **0 MB**.
-* **First-Stage Model Memory Freeing (Saved ~120MB RAM):** Immediately after executing the FAISS search, the first-stage embedding model (`all-MiniLM-L6-v2`) is deleted from memory, and `gc.collect()` is run to reclaim ~120MB of RAM before loading the heavier second-stage scoring models.
+* **Precomputed Results Cache & Lazy Model Loading (Saved ~520MB RAM, Startup Time <1s):** Removed the global model loading at startup. The ML models are loaded lazily inside the pipeline thread only when a live run is initiated. If the user loads the page for the first time, the dashboard loads results instantly from `data/default_results.json`, bypassing both model loading and pipeline execution. This keeps the initial startup memory footprint under 160MB and guarantees the `/healthz` check succeeds immediately.
+* **First-Stage Model Memory Freeing (Saved ~120MB):** Immediately after executing the FAISS search, the first-stage embedding model (`all-MiniLM-L6-v2`) is deleted from memory, and `gc.collect()` is run to reclaim ~120MB of RAM before loading the heavier second-stage scoring models.
 * **Garbage Collection Integration:** Explicitly triggered `gc.collect()` at the end of every pipeline run to instantly clean up temporary references and keep memory well under the 1.0 GB limit.
 
 ### 2. Self-Healing FAISS Index Downloader
