@@ -120,4 +120,29 @@ Following recruiter feedback and to improve demonstration clarity for judges, we
 8. **Download CSV Button:** Added a direct `st.download_button` to download the final CSV.
 9. **Architecture Tab:** Added an `Architecture & Pipeline` tab displaying a custom theme-aware inline SVG flowchart and detailed descriptions.
 
+---
+
+## 🚀 Dynamic Constraints & Multi-Stage Pre-Filtering (V5)
+
+To support Job Descriptions with customized experience requirements and specific target locations, we upgraded the scoring engine to be fully dynamic:
+
+### 1. Dynamic Scorer Adaptive Step-Function
+* Rather than using hardcoded bounds, `compute_structured_score` now accepts the dynamically parsed experience range `(exp_min, exp_max, exp_peak)` from the Job Description.
+* Adapts the step-function scoring dynamically (e.g. for `1-2 years` experience JDs, candidates with 1-2 years receive `100.0` points, while candidates with 5+ years are appropriately decayed to `40.0` points).
+
+### 2. Dynamic Location Matching
+* Extracted Job Description location preferences are parsed to dynamically match against candidates' location text (e.g. checking for Pune, Mumbai, etc., instead of relying on hardcoded city matches).
+
+### 3. Multi-Stage Hybrid Pre-Filtering (Performance & Accuracy Boost)
+* Increased the first-stage FAISS retrieval from **250** to **1000** candidates. This ensures candidates with matching experience/locations are not left behind due to title mismatches in vector search.
+* Applied a fast **Multi-Stage Pre-Filter** over the 1000 candidates based on a weighted combination of:
+  * FAISS vector search rank (`40%`)
+  * Experience match (`30%`)
+  * Location match (`15%`)
+  * Must-have skills match (`15%`)
+* Pruned the candidate pool down to the top **150** matches before executing the expensive second-stage ML models (Semantic, BM25, Cross-Encoder). This yields a **faster overall execution time** while ensuring candidates with matching constraints are ranked at the top.
+
+### 4. Relative Must-Have Gating
+* Converted the absolute must-have skill gating threshold (`must_have_count < 2`) to be relative to the total number of must-have skills in the JD. If a JD specifies only 2 must-haves, candidates matching 1 out of 2 are no longer rejected with a 0.0 score, preserving high-quality partial-fit matches.
+
 
