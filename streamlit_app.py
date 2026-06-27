@@ -870,39 +870,40 @@ with tab1:
                         fit_badge = '<span class="badge badge-amber">Partial fit</span>'
                         
                     # Split reasonings for quick display
-                    short_reasoning = reasoning.split("Concern:")[0].split("Disadvantage:")[0]
+                    short_reasoning = reasoning.split("Concern:")[0].split("Disadvantage:")[0].strip()
                     
-                    table_rows += f"""
-                    <tr>
-                        <td style="font-weight: 700; width: 50px;">#{rank}</td>
-                        <td style="font-family: 'JetBrains Mono', monospace; font-weight: 600; color: var(--accent);">{cid}</td>
-                        <td>
-                            <div style="font-weight: 600;">{title}</div>
-                            <div style="font-size: 0.75rem; color: var(--text-muted);">{exp:.1f} years exp | {profile.get('location', 'India')}</div>
-                        </td>
-                        <td style="font-weight: 700; color: var(--accent);">{score:.2f}%</td>
-                        <td>{fit_badge}</td>
-                        <td style="font-size: 0.76rem; max-width: 320px; line-height: 1.25;">{short_reasoning}</td>
-                    </tr>
-                    """
+                    table_rows += (
+                        f'<tr>'
+                        f'<td style="font-weight: 700; width: 50px;">#{rank}</td>'
+                        f'<td style="font-family: \'JetBrains Mono\', monospace; font-weight: 600; color: var(--accent);">{cid}</td>'
+                        f'<td>'
+                        f'<div style="font-weight: 600;">{title}</div>'
+                        f'<div style="font-size: 0.75rem; color: var(--text-muted);">{exp:.1f} years exp | {profile.get("location", "India")}</div>'
+                        f'</td>'
+                        f'<td style="font-weight: 700; color: var(--accent);">{score:.2f}%</td>'
+                        f'<td>{fit_badge}</td>'
+                        f'<td style="font-size: 0.76rem; max-width: 320px; line-height: 1.25;">{short_reasoning}</td>'
+                        f'</tr>'
+                    )
                     
-                st.markdown(f"""
-                <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th>Rank</th>
-                            <th>ID</th>
-                            <th>Current Profile</th>
-                            <th>Score</th>
-                            <th>Fit Status</th>
-                            <th>Justification Summary</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {table_rows}
-                    </tbody>
-                </table>
-                """, unsafe_allow_html=True)
+                table_html = (
+                    f'<table class="data-table">'
+                    f'<thead>'
+                    f'<tr>'
+                    f'<th>Rank</th>'
+                    f'<th>ID</th>'
+                    f'<th>Current Profile</th>'
+                    f'<th>Score</th>'
+                    f'<th>Fit Status</th>'
+                    f'<th>Justification Summary</th>'
+                    f'</tr>'
+                    f'</thead>'
+                    f'<tbody>'
+                    f'{table_rows}'
+                    f'</tbody>'
+                    f'</table>'
+                )
+                st.markdown(table_html, unsafe_allow_html=True)
                 
                 # Dynamic Selector to view in Candidate Profiler
                 st.markdown("---")
