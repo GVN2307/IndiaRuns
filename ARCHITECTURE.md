@@ -37,40 +37,42 @@ The diagram below maps the execution pipeline from inputting the job description
 ```mermaid
 graph TD
     JD[job_description.md] --> |Parsed by| JDParser[jd_parser.py]
-    JDParser --> |Query Text| SemScorer[semantic_scorer.py]
+    JDParser --> |Expanded Query| SemScorer[semantic_scorer.py]
     JDParser --> |Target Skills & Keywords| Aggregator[hybrid_aggregator.py]
     
     CandidatesPool[candidates.jsonl.gz] --> |Streamed & Cleaned| DataLoader[data_loader.py]
     
-    %% Retrieval
+    %% First-Pass Retrieval
     SemScorer --> |JD Embedding| FAISS[(FAISS IndexFlatIP)]
-    FAISS --> |Top 250 Candidate IDs| CandidateFilter{Candidate Filter}
+    FAISS --> |Top 1000 Candidate IDs| CandidateFilter{1000 Candidate Filter}
     DataLoader --> |All Candidates| CandidateFilter
     
-    %% Features
-    CandidateFilter --> |250 Matched Candidate Objects| FeatureExtractor[features.py]
-    
-    %% Scoring
+    %% First-Pass Scoring
+    CandidateFilter --> |1000 Candidate Objects| FeatureExtractor[features.py]
     FeatureExtractor --> |Numeric Profile Data| StructuredScorer[structured_scorer.py]
     StructuredScorer --> |Rule-Based & GBR Surrogate| StructuredScore[Structured Score - 45%]
-    
-    CandidateFilter --> |Rich Candidate Text| BM25[BM25 Scorer - 20%]
-    CandidateFilter --> |Rich Candidate Text| SemModel[Semantic Model - 20%]
+    CandidateFilter --> |Rich Text| BM25[BM25 Scorer - 20%]
     FAISS --> |FAISS retrieval score| VectorScore[Vector Score - 15%]
     
-    %% Verification & Modifiers
-    FeatureExtractor --> |Flag Check| Honeypot[honeypot_detector.py]
-    
-    %% Final Aggregator
-    SemModel --> Aggregator
+    %% Intermediate Aggregation
     StructuredScore --> Aggregator
     VectorScore --> Aggregator
     BM25 --> Aggregator
+    
+    %% Honeypot & Disqualifications
+    FeatureExtractor --> |Flag Check| Honeypot[honeypot_detector.py]
     Honeypot --> |Capping & Disqualifications| Aggregator
     
-    %% Reranking
-    Aggregator --> |First-Pass Combined Rankings| CrossEncoder[Cross-Encoder Reranker]
-    CrossEncoder --> |40% Score Blending| FinalRerank[Final Score Mapping & Decending Order]
+    %% Pruning
+    Aggregator --> |Compute Intermediate Scores| Pruner{Prune to Top 150}
+    
+    %% Second-Pass ML Scoring
+    Pruner --> |Top 150 Candidates| SemModel[Semantic Scorer - 20%]
+    Pruner --> |Top 150 Candidates| CrossEncoder[Cross-Encoder Reranker - 40%]
+    
+    %% Final Ranking
+    SemModel --> FinalRerank[Final Score Blend & Mapping]
+    CrossEncoder --> FinalRerank
     
     %% Output
     FinalRerank --> |Top 100 Candidates| Reasoning[reasoning_generator.py]

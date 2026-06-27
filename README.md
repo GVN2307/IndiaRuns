@@ -39,43 +39,41 @@ CVHunt is a high-performance candidate discovery and ranking system designed for
                 +--------------------+--------------------+
                                      |
                                      v [ Candidate Filtering ]
-                                     | (Top 250 Retrieved)
+                                     | (Top 1000 Retrieved)
                                      │
-         ┌───────────────────────────┼───────────────────────────┐
-         ▼                           ▼                           ▼
-  [Semantic Scorer]           [BM25 Scorer]             [Structured Scorer]
-  • mpnet-base-v2             • rank-bm25               • Experence peak center
-  • Rich candidate text       • Global text match       • GBR surrogate model
-  • Weight: 20%               • Weight: 20%             • Weight: 45%
-         │                           │                           │
-         └───────────────────────────┼───────────────────────────┘
+                 ┌───────────────────┴───────────────────┐
+                 ▼                                       ▼
+        [Structured Scorer]                        [BM25 Scorer]
+        • GBR surrogate model                      • rank-bm25
+        • Weight: 45%                              • Weight: 20%
+                 │                                       │
+                 └───────────────────┬───────────────────┘
                                      │ (Vector / FAISS Weight: 15%)
                                      ▼
-                          [ hybrid_aggregator.py ]
-                          • Multipliers (Notice, Location, GitHub, Assessment)
-                          • Gating & Hard Disqualifications
-                          • Honeypot Detection Filter (Max score = 0.0)
+                          [ Intermediate Ranker ]
+                          • Filters honeypots/disqualifications
+                          ▼ [ Prune to Top 150 ]
                                      │
-                                     ▼ [ First-Pass Sort ]
-                                     │
-                      [ Cross-Encoder Reranker ]
-                      • ms-marco-MiniLM-L-6-v2 on top candidates
-                      • Blend: 0.6 * base + 0.4 * CrossEncoder
-                                     │
-                                     ▼ [ Score Mapping ]
-                                     │ (Tiers: 95-100, 70-95, 30-70)
+                 ┌───────────────────┴───────────────────┐
+                 ▼                                       ▼
+         [Semantic Scorer]                    [Cross-Encoder Reranker]
+         • mpnet-base-v2                      • ms-marco-MiniLM-L-6-v2
+         • Weight: 20%                        • Blend: 0.6 * base + 0.4 * CE
+                 │                                       │
+                 └───────────────────┬───────────────────┘
                                      ▼
-                          [ reasoning_generator.py ]
-                          • Dynamic recruiter justifications
-                                     │
-                                     ▼
-                            [ Output submission.csv ]
-                                     │
-                                     ▼
-                            [ validator.py ] (Validates compliance)
+                            [ Score Mapping ]
+                            │ (Tiers: 95-100, 70-95, 30-70)
+                            ▼
+                         [ reasoning_generator.py ]
+                         • Dynamic justifications
+                            │
+                            ▼
+                   [ Output submission.csv / UI ]
 ```
 
-Detailed documentation of files and concepts can be found in [ARCHITECTURE.md](file:///c:/Users/veera/Desktop/Codes%20for%20fun/India%20Runs/CVHunt/ARCHITECTURE.md).
+Detailed explanation of each module, its design constraints, mathematical formulations, and engineering decisions can be found in the comprehensive **[SYSTEM_MANUAL.md](file:///c:/Users/veera/Desktop/Codes%20for%20fun/India%20Runs/CVHunt/SYSTEM_MANUAL.md)**.
+File concepts and structure summaries are also documented in **[ARCHITECTURE.md](file:///c:/Users/veera/Desktop/Codes%20for%20fun/India%20Runs/CVHunt/ARCHITECTURE.md)**.
 
 ---
 
@@ -168,8 +166,19 @@ We provide a memory-optimized recruiter dashboard deployed at **[indiaruns.strea
 
 ### ⚙️ Memory-Limit Design (1.0 GB RAM Constraints)
 Because Streamlit Community Cloud has a hard 1.0 GB container RAM limit, we implemented the following performance constraints:
-1. **Lazy Database Streaming:** Instead of loading all 100,000 candidate profiles into memory at startup (which uses 350MB+), candidate profiles are scanned and parsed on-the-fly from the gzip file `data/candidates.jsonl.gz` inside the query thread. We use a fast raw-string index scan to extract only the 250 profiles matching the first-stage FAISS search.
+1. **Lazy Database Streaming:** Instead of loading all 100,000 candidate profiles into memory at startup (which uses 350MB+), candidate profiles are scanned and parsed on-the-fly from the gzip file `data/candidates.jsonl.gz` inside the query thread. We use a fast raw-string index scan to extract only the profiles matching the first-stage FAISS search.
 2. **First-Stage Model Unloading:** Immediately after retrieving candidate IDs from the FAISS vector index, the first-stage embedding model (`all-MiniLM-L6-v2`) is deleted and memory is reclaimed via `gc.collect()` before starting the heavier second-stage scoring modules.
 3. **Garbage Collection:** We trigger garbage collection after every discovery search thread executes to prevent memory leaks.
 4. **Self-Healing Index Downloader:** Since `faiss_index.bin` (~153MB) is too large for GitHub pushes, the application includes a direct download engine that automatically parses Google Drive's virus scan warning forms and downloads the binary file on first load.
 5. **Dedent formatting wrapper:** To prevent dynamic HTML tables and skills badges from rendering as plain text code blocks in markdown, all multi-line markdown rendering is automatically dedented.
+
+---
+
+## 8. 🧪 Automated Testing
+
+We provide a comprehensive unit and integration test suite under `tests/` to verify candidate scoring, disqualification thresholds, and ranking computations:
+
+```bash
+# Run all tests locally
+python -m unittest discover -s tests -p "test_*.py"
+```
