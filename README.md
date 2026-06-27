@@ -90,18 +90,15 @@ CVHunt aggregates four scoring engines to rank candidates:
    * Experience years using a Gaussian decay function peaking at 7 years.
    * Product-vs-consulting company ratios.
    * Education tiers (Tier-1, Tier-2, Tier-3 mapping).
-   * A **Gradient Boosting Regressor** surrogate model trained on expert ranking lists to mimic recruitment logic (50% blend).
+    * An optional **Gradient Boosting Regressor** surrogate model trained on heuristic scores to smooth structured ranking (50% blend).
 
 ---
 
 ## 3. Advanced Filtering & Gating
 
-* **Graduated Must-Have Skill Gating**: Candidates are evaluated on 20 critical must-have skills (e.g. embeddings, retrieval, FAISS, evaluation metrics).
-  * $< 2$ must-haves: **Disqualified** (final score = 0.0)
-  * $< 3$ must-haves: final score $\times 0.15$
-  * $< 6$ must-haves: final score $\times 0.3$
-  * $< 9$ must-haves: final score $\times 0.6$
-  * $< 12$ must-haves: final score $\times 0.8$
+* **Relative Must-Have Skill Gating**: Candidates are evaluated on the Job Description's must-have skills (e.g. embeddings, RAG, PyTorch).
+  * Candidates with less than the minimum required must-have skills are **disqualified** (final score = 0.0).
+  * Applies graduated penalty multipliers (from `0.15` to `0.80`) based on the candidate's match ratio of the Job Description's must-have skills.
 * **Honeypot Detection**: Runs 8 rules to identify fraudulent profiles (such as claiming credentials before a company was founded, or claiming expert proficiency with 0 experience). Flagged candidates receive a score of `0.0`.
 * **Hard Disqualifications**: Auto-rejects candidates with zero product company experience, computer vision engineers without generic AI/ML background, or candidates with $\geq 95\%$ consulting firm ratios.
 

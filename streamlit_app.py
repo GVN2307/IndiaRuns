@@ -1369,14 +1369,14 @@ with tab4:
         #### 2. First-Stage Dense Retrieval (`vector_index.py`)
         - Encodes the parsed JD query into a dense vector embedding using `all-MiniLM-L6-v2`.
         - Performs an O(1) similarity search against 100,000 candidate profiles in a **FAISS FlatIP vector index**.
-        - Retrieves the top 250 candidate IDs matching the query vector.
+        - Retrieves the top 1000 candidate IDs matching the query vector, then applies a fast hybrid pre-filter to narrow it down to the top 150 candidates for final scoring.
         
         #### 3. 4-Score Hybrid Scorer (`compute_final_ranking`)
         Blends multiple retrieval and scoring philosophies:
         - **Semantic Scorer (20%):** Calculates cosine similarity between dense candidate profile texts and the JD using `all-mpnet-base-v2`. Includes keyword boosts.
         - **BM25 Search (20%):** Runs classical keyword frequencies over profile texts to lock onto specific, exact matching terms.
         - **Vector Search (15%):** Leverages raw index similarity distances.
-        - **Structured Scorer (45%):** Blend of rule-based gating (gains/decays for experience, education tier, and company ratio) and a **Gradient Boosting Regressor** surrogate trained on professional recruiters' decisions.
+        - **Structured Scorer (45%):** Blend of rule-based gating (gains/decays for experience, education tier, and company ratio) and a **Gradient Boosting Regressor** surrogate trained on heuristic scores to smooth structured ranking.
         """)
     with arch_col2:
         st.markdown("""
@@ -1387,8 +1387,8 @@ with tab4:
         - Flagged profiles are capped at a maximum final score of `20.0`, safely filtering them out of the top 100 list.
         
         #### ⚖️ Hard Disqualifications & Gating
-        - Candidate profiles with `< 2` must-have skills are auto-disqualified (score = 0.0).
-        - Candidates with `< 3` must-have skills receive a heavy `0.15` multiplier penalty.
+        - Candidate profiles with `< 2` must-have skills (or `< 1` for small JDs) are auto-disqualified (score = 0.0).
+        - Applies graduated penalty multipliers (from `0.15` to `0.80`) based on the candidate's match ratio of the Job Description's must-have skills.
         - Auto-rejects candidates with zero product-company experience or ≥ 95% consulting experience ratios.
         
         #### 📈 Deterministic Tie-Breaking

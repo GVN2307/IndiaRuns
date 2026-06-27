@@ -23,7 +23,7 @@ Before looking at the code, let's understand the terms and basic concepts used i
 * **BM25**: A classical keyword search algorithm (based on TF-IDF). It scores how relevant a document is to search terms based on exact keyword matches. This ensures that even if semantic models miss specific terms, they are captured.
 
 ### 🧠 Surrogate Modeling
-* **Surrogate Model**: A machine learning model (Gradient Boosting Regressor) trained to learn how human recruiters score candidates. It acts as an automated scoring assistant.
+* **Surrogate Model**: An optional surrogate model (Gradient Boosting Regressor) trained on heuristic scores to smooth structured ranking.
 
 ### ⚠️ Security & Anti-Cheat
 * **Honeypot**: A fake profile with impossible/fraudulent credentials (e.g., claiming 8 years of experience in a technology that has only existed for 1 year, or listing 50 expert skills with zero actual job history).
@@ -111,7 +111,7 @@ Here is what each file in the project does, what algorithms it uses, and where t
 ### 📂 Scoring & retrieval Engines
 6. **`src/vector_index.py`**
    * **Role**: High-speed retrieval index.
-   * **What it does**: Wraps a FAISS FlatIP index. It takes the JD vector and quickly returns the top $K$ candidates (e.g. 250) based on cosine similarity, bypassing the need to analyze all 100,000 candidates with heavy models.
+   * **What it does**: Wraps a FAISS FlatIP index. It takes the JD vector and quickly returns the top $K$ candidates (e.g. 1000) based on cosine similarity, which are then pre-filtered to the top 150 candidates, bypassing the need to analyze all 100,000 candidates with heavy models.
 7. **`src/semantic_scorer.py`**
    * **Role**: Dense semantic matching.
    * **What it does**: Generates a long detailed textual description of a candidate (containing current title, summary, jobs, skills, education) and encodes it into a semantic vector using `SentenceTransformer('sentence-transformers/all-mpnet-base-v2')`.
@@ -119,7 +119,7 @@ Here is what each file in the project does, what algorithms it uses, and where t
    * **Role**: Structured profile quality evaluator.
    * **What it does**: Computes two sub-scores:
      * *Rule-based score*: A heuristic evaluator applying Gaussian experience peak centers (optimal at 7 years), penalties for non-tech job histories, and education bonuses.
-     * *Surrogate model score*: Uses a trained `GradientBoostingRegressor` to predict expert recruiter rankings.
+     * *Surrogate model score*: Uses an optional `GradientBoostingRegressor` surrogate trained on heuristic scores to smooth structured ranking.
 9. **`src/honeypot_detector.py`**
    * **Role**: Fraud prevention.
    * **What it does**: Runs 8 security checks:
