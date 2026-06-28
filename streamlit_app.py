@@ -4,6 +4,8 @@ import json
 import gzip
 import time
 import re
+import threading
+import uuid
 import numpy as np
 import pandas as pd
 import streamlit as st
@@ -16,6 +18,9 @@ def dedented_markdown(body, unsafe_allow_html=False):
         body = textwrap.dedent(body)
     return _original_markdown(body, unsafe_allow_html=unsafe_allow_html)
 st.markdown = dedented_markdown
+
+# Global lock to prevent concurrent heavy ML pipeline executions (OOM prevention on Streamlit Cloud)
+_pipeline_lock = threading.Lock()
 
 import plotly.express as px
 import plotly.graph_objects as go
@@ -59,6 +64,9 @@ if "parsed_jd" not in st.session_state:
 
 if "selected_cid" not in st.session_state:
     st.session_state.selected_cid = None
+
+if "session_uuid" not in st.session_state:
+    st.session_state.session_uuid = str(uuid.uuid4())
 
 def toggle_theme():
     st.session_state.theme = "light" if st.session_state.theme == "dark" else "dark"
@@ -657,7 +665,7 @@ with tab1:
         )
         
         jd_content = ""
-        filepath = "temp_jd.md"
+        filepath = f"temp_jd_{st.session_state.session_uuid}.md"
         
         if jd_source == "Default JD (Senior AI Engineer - Founding Team)":
             default_path = "data/job_description.md"
@@ -680,9 +688,9 @@ with tab1:
             uploaded_file = st.file_uploader("Upload Job Description", type=["md", "txt", "docx"])
             if uploaded_file is not None:
                 if uploaded_file.name.endswith(".docx"):
-                    filepath = "temp_jd.docx"
+                    filepath = f"temp_jd_{st.session_state.session_uuid}.docx"
                 else:
-                    filepath = "temp_jd.md"
+                    filepath = f"temp_jd_{st.session_state.session_uuid}.md"
                 with open(filepath, "wb") as f:
                     f.write(uploaded_file.getbuffer())
                 # Triggers re-parsing
@@ -742,6 +750,13 @@ with tab1:
                 except Exception as e:
                     st.error(f"Error parsing Job Description: {e}")
                     st.session_state.parsed_jd = None
+                finally:
+                    # Clean up session-specific temp file immediately after parsing
+                    if filepath and os.path.exists(filepath) and "temp_jd_" in filepath:
+                        try:
+                            os.remove(filepath)
+                        except Exception:
+                            pass
             
             jd_reqs = st.session_state.parsed_jd
             
@@ -766,25 +781,16 @@ with tab1:
                 st.markdown("---")
                 
                 if run_btn:
-                    with st.status("Executing CVHunt AI Recruiter Pipeline...", expanded=True) as status:
-                        t_start = time.time()
-                        st.session_state.pipeline_results = run_interactive_pipeline(
-                            jd_reqs, 
-                            weights, 
-                            index, 
-                            candidate_ids, 
-                            status_box=status
-                        )
-                        st.session_state.pipeline_time = time.time() - t_start
-                elif st.session_state.pipeline_results is None:
-                    # Load precomputed default results to make startup instantaneous & OOM-safe
-                    default_res_path = os.path.join(BASE_DIR, "data", "default_results.json")
-                    if os.path.exists(default_res_path):
-                        with open(default_res_path, "r", encoding="utf-8") as f:
-                            st.session_state.pipeline_results = json.load(f)
-                        st.session_state.pipeline_time = 92.94 # default runtime
-                    else:
-                        with st.status("Executing CVHunt AI Recruiter Pipeline (Fallback)...", expanded=True) as status:
+                    with st.status("Initializing CVHunt AI Recruiter Pipeline...", expanded=True) as status:
+                        status.write("Checking system availability...")
+                        # Acquire global lock to prevent concurrent heavy ML executions (OOM prevention)
+                        acquired = _pipeline_lock.acquire(blocking=False)
+                        if not acquired:
+                            status.write("⚠️ Another user is currently running the pipeline. Waiting for resources to free up...")
+                            _pipeline_lock.acquire(blocking=True)
+                        
+                        try:
+                            status.write("System resources locked. Running pipeline...")
                             t_start = time.time()
                             st.session_state.pipeline_results = run_interactive_pipeline(
                                 jd_reqs, 
@@ -794,6 +800,37 @@ with tab1:
                                 status_box=status
                             )
                             st.session_state.pipeline_time = time.time() - t_start
+                        finally:
+                            _pipeline_lock.release()
+                elif st.session_state.pipeline_results is None:
+                    # Load precomputed default results to make startup instantaneous & OOM-safe
+                    default_res_path = os.path.join(BASE_DIR, "data", "default_results.json")
+                    if os.path.exists(default_res_path):
+                        with open(default_res_path, "r", encoding="utf-8") as f:
+                            st.session_state.pipeline_results = json.load(f)
+                        st.session_state.pipeline_time = 92.94 # default runtime
+                    else:
+                        with st.status("Initializing CVHunt AI Recruiter Pipeline (Fallback)...", expanded=True) as status:
+                            status.write("Checking system availability...")
+                            # Acquire global lock
+                            acquired = _pipeline_lock.acquire(blocking=False)
+                            if not acquired:
+                                status.write("⚠️ Another user is currently running the pipeline. Waiting for resources to free up...")
+                                _pipeline_lock.acquire(blocking=True)
+                            
+                            try:
+                                status.write("System resources locked. Running pipeline (Fallback)...")
+                                t_start = time.time()
+                                st.session_state.pipeline_results = run_interactive_pipeline(
+                                    jd_reqs, 
+                                    weights, 
+                                    index, 
+                                    candidate_ids, 
+                                    status_box=status
+                                )
+                                st.session_state.pipeline_time = time.time() - t_start
+                            finally:
+                                _pipeline_lock.release()
                         
                 results = st.session_state.pipeline_results
                 p_time = st.session_state.get("pipeline_time", 0.0)

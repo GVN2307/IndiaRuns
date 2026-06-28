@@ -221,6 +221,23 @@ def parse_jd(filepath: str) -> JDRequirements:
             print(f"Warning: Could not read file {filepath}: {e}. Using defaults.")
             content = ""
 
+    if not content or len(content.strip()) < 30:
+        raise ValueError("Uploaded file is empty or too short (minimum 30 characters required).")
+
+    # Validate if it looks like a Job Description
+    content_lower = content.lower()
+    recruitment_keywords = [
+        "experience", "skill", "job", "role", "title", "position", "require", 
+        "look for", "responsibilit", "qualification", "candidate", "engineer", 
+        "developer", "analyst", "manager", "architect"
+    ]
+    has_recruitment_term = any(k in content_lower for k in recruitment_keywords)
+    has_tech_skill = any(re.search(rf'\b{re.escape(s.lower())}\b', content_lower) for s in MUST_HAVE_SKILLS + NICE_TO_HAVE_SKILLS)
+    dyn_skills = extract_dynamic_skills(content)
+    
+    if not has_recruitment_term and not has_tech_skill and not dyn_skills:
+        raise ValueError("Invalid Job Description: The file content does not contain any recognizable job role, requirements, or professional skills.")
+
     # Defaults
     role = "Senior AI Engineer"
     must_have_skills = []
