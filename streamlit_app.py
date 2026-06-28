@@ -6,10 +6,18 @@ import time
 import re
 import threading
 import uuid
+import warnings
 import numpy as np
 import pandas as pd
 import streamlit as st
 import textwrap
+
+# Suppress sklearn unpickling warnings
+try:
+    from sklearn.exceptions import InconsistentVersionWarning
+    warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+except ImportError:
+    pass
 
 # Auto-dedent all st.markdown calls to prevent indented HTML/markdown strings from rendering as code blocks
 _original_markdown = st.markdown

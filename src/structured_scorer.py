@@ -1,7 +1,15 @@
 import math
 import os
 import pickle
+import warnings
 from typing import Dict, Any, Tuple
+
+# Suppress sklearn unpickling warnings
+try:
+    from sklearn.exceptions import InconsistentVersionWarning
+    warnings.filterwarnings("ignore", category=InconsistentVersionWarning)
+except ImportError:
+    pass
 
 # Global variable to cache the surrogate model
 _surrogate_model = None
