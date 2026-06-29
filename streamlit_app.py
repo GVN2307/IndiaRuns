@@ -52,7 +52,7 @@ from src.reasoning_generator import generate_reasoning
 # 1. Streamlit Page Configuration
 # ----------------------------------------------------
 st.set_page_config(
-    page_title="CVHunt AI Recruiter",
+    page_title="CVHunt",
     page_icon="◆",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -161,8 +161,7 @@ with head_left:
     st.markdown("""
     <div class="brand">
         <span class="brand-logo">◆</span>
-        <span class="brand-name">CVHunt AI Recruiter</span>
-        <span class="brand-subtitle">AI-Powered Intelligent Discovery & Reranking</span>
+        <span class="brand-name">CVHunt</span>
     </div>
     """, unsafe_allow_html=True)
 with head_right:
@@ -730,7 +729,7 @@ with tab1:
         if 'weights' not in locals():
             weights = {"semantic": 0.2, "bm25": 0.2, "vector": 0.15, "structured": 0.45}
             
-        run_btn = st.button("🚀 Run AI Recruiter Pipeline", use_container_width=True)
+        run_btn = st.button("🚀 Run CVHunt Pipeline", use_container_width=True)
         
         # System Information Card
         st.markdown('<div class="section-title">System Information</div>', unsafe_allow_html=True)
@@ -789,7 +788,7 @@ with tab1:
                 st.markdown("---")
                 
                 if run_btn:
-                    with st.status("Initializing CVHunt AI Recruiter Pipeline...", expanded=True) as status:
+                    with st.status("Initializing CVHunt Pipeline...", expanded=True) as status:
                         status.write("Checking system availability...")
                         # Acquire global lock to prevent concurrent heavy ML executions (OOM prevention)
                         acquired = _pipeline_lock.acquire(blocking=False)
@@ -818,7 +817,7 @@ with tab1:
                             st.session_state.pipeline_results = json.load(f)
                         st.session_state.pipeline_time = 92.94 # default runtime
                     else:
-                        with st.status("Initializing CVHunt AI Recruiter Pipeline (Fallback)...", expanded=True) as status:
+                        with st.status("Initializing CVHunt Pipeline (Fallback)...", expanded=True) as status:
                             status.write("Checking system availability...")
                             # Acquire global lock
                             acquired = _pipeline_lock.acquire(blocking=False)
