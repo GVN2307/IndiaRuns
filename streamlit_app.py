@@ -874,8 +874,25 @@ with tab1:
                 # Generate Ranked Excel bytes in memory
                 import io
                 excel_buffer = io.BytesIO()
-                df_csv.to_excel(excel_buffer, index=False, engine='openpyxl')
-                excel_data = excel_buffer.getvalue()
+                
+                # Self-healing import check for openpyxl
+                try:
+                    import openpyxl
+                except ImportError:
+                    try:
+                        import subprocess
+                        import sys
+                        subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
+                        import openpyxl
+                    except Exception as pip_err:
+                        st.error(f"Could not load or install openpyxl: {pip_err}")
+                        
+                excel_data = None
+                try:
+                    df_csv.to_excel(excel_buffer, index=False, engine='openpyxl')
+                    excel_data = excel_buffer.getvalue()
+                except Exception as excel_err:
+                    st.error(f"Error generating Excel file: {excel_err}")
                 
                 dl_col1, dl_col2 = st.columns(2)
                 with dl_col1:
@@ -887,13 +904,16 @@ with tab1:
                         use_container_width=True
                     )
                 with dl_col2:
-                    st.download_button(
-                        label="📊 Download Excel Spreadsheet",
-                        data=excel_data,
-                        file_name="submission.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True
-                    )
+                    if excel_data is not None:
+                        st.download_button(
+                            label="📊 Download Excel Spreadsheet",
+                            data=excel_data,
+                            file_name="submission.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True
+                        )
+                    else:
+                        st.button("📊 Excel Export Unavailable", disabled=True, use_container_width=True)
                 
                 # Custom HTML table styling
                 table_rows = ""

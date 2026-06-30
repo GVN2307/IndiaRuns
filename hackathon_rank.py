@@ -339,9 +339,19 @@ def main():
     
     if args.output.endswith('.xlsx'):
         # If output specifically requested as Excel
-        df = pd.DataFrame(final_rows)
-        df.to_excel(args.output, index=False, engine='openpyxl')
-        print(f"Excel file saved to {args.output}")
+        try:
+            try:
+                import openpyxl
+            except ImportError:
+                import subprocess
+                import sys
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
+                import openpyxl
+            df = pd.DataFrame(final_rows)
+            df.to_excel(args.output, index=False, engine='openpyxl')
+            print(f"Excel file saved to {args.output}")
+        except Exception as e:
+            print(f"Error saving Excel file: {e}")
     else:
         # Save standard CSV
         with open(args.output, 'w', encoding='utf-8', newline='') as f:
@@ -354,6 +364,13 @@ def main():
         # Auto-generate Excel file next to CSV
         excel_path = os.path.splitext(args.output)[0] + ".xlsx"
         try:
+            try:
+                import openpyxl
+            except ImportError:
+                import subprocess
+                import sys
+                subprocess.check_call([sys.executable, "-m", "pip", "install", "openpyxl"])
+                import openpyxl
             df = pd.DataFrame(final_rows)
             df.to_excel(excel_path, index=False, engine='openpyxl')
             print(f"Excel file automatically saved next to CSV at {excel_path}")
