@@ -901,7 +901,7 @@ with tab1:
                         fit_badge = '<span class="badge badge-amber">Partial fit</span>'
                         
                     # Split reasonings for quick display
-                    short_reasoning = reasoning.split("Concern:")[0].split("Disadvantage:")[0].strip()
+                    short_reasoning = reasoning.split("---")[0].split("Concern:")[0].split("Disadvantage:")[0].strip()
                     
                     table_rows += (
                         f'<tr>'
@@ -1003,11 +1003,13 @@ with tab2:
             with det_left:
                 # 1. Recruiter Reasoning
                 st.markdown('<div class="section-title">Recruiter Justification & Reasoning</div>', unsafe_allow_html=True)
-                st.markdown(f"""
-                <div class="profile-box" style="background-color: var(--bg-subtle); border-left: 4px solid var(--accent);">
-                    <p style="font-size: 0.9rem; line-height: 1.5; font-style: italic; margin: 0;">"{reasoning}"</p>
-                </div>
-                """, unsafe_allow_html=True)
+                st.markdown('<div class="profile-box" style="background-color: var(--bg-subtle); border-left: 4px solid var(--accent); padding: 15px 18px;">', unsafe_allow_html=True)
+                if "---" in reasoning:
+                    detailed_reasoning = reasoning.split("---")[1].strip()
+                    st.markdown(detailed_reasoning)
+                else:
+                    st.markdown(f'<p style="font-size: 0.9rem; line-height: 1.5; font-style: italic; margin: 0;">"{reasoning}"</p>', unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
                 
                 # 2. Career History
                 st.markdown('<div class="section-title">Career History & Job Timeline</div>', unsafe_allow_html=True)
