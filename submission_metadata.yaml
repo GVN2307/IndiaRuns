@@ -7,7 +7,13 @@ primary_contact:
 
 team_members:
   - name: "Kandi Harish Reddy"
-    email: "kandiharishreddy@gmail.com"
+    email: "kandiharish2005@gmail.com"
+    role: "Student"
+  - name: "Nehal Gummula"
+    email: "gummulanehal@gmail.com"
+    role: "Student"
+  - name: "Srikar Lokai"
+    email: "srikar0912@gmail.com"
     role: "Student"
 
 github_repo: "https://github.com/GVN2307/IndiaRuns"
