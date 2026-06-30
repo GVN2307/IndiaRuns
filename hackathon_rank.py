@@ -27,6 +27,7 @@ import time
 import json
 import csv
 import numpy as np
+import pandas as pd
 
 # Add base directory to path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -336,13 +337,30 @@ def main():
     print(f"\n[Phase 7] Writing results to {args.output}...")
     p_start = time.time()
     
-    with open(args.output, 'w', encoding='utf-8', newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=["candidate_id", "rank", "score", "reasoning"])
-        writer.writeheader()
-        for row in final_rows:
-            writer.writerow(row)
+    if args.output.endswith('.xlsx'):
+        # If output specifically requested as Excel
+        df = pd.DataFrame(final_rows)
+        df.to_excel(args.output, index=False, engine='openpyxl')
+        print(f"Excel file saved to {args.output}")
+    else:
+        # Save standard CSV
+        with open(args.output, 'w', encoding='utf-8', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=["candidate_id", "rank", "score", "reasoning"])
+            writer.writeheader()
+            for row in final_rows:
+                writer.writerow(row)
+        print(f"CSV file saved to {args.output}")
+        
+        # Auto-generate Excel file next to CSV
+        excel_path = os.path.splitext(args.output)[0] + ".xlsx"
+        try:
+            df = pd.DataFrame(final_rows)
+            df.to_excel(excel_path, index=False, engine='openpyxl')
+            print(f"Excel file automatically saved next to CSV at {excel_path}")
+        except Exception as e:
+            print(f"Warning: Could not save Excel file: {e}")
             
-    timings["Writing CSV"] = time.time() - p_start
+    timings["Writing Output Files"] = time.time() - p_start
     
     # ----------------------------------------------------
     # Phase 8: Validate Output CSV

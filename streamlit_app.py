@@ -871,13 +871,29 @@ with tab1:
                 df_csv = pd.DataFrame(csv_rows)
                 csv_data = df_csv.to_csv(index=False, encoding="utf-8")
                 
-                st.download_button(
-                    label="📥 Download Ranked Top 100 CSV (submission.csv)",
-                    data=csv_data,
-                    file_name="submission.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
+                # Generate Ranked Excel bytes in memory
+                import io
+                excel_buffer = io.BytesIO()
+                df_csv.to_excel(excel_buffer, index=False, engine='openpyxl')
+                excel_data = excel_buffer.getvalue()
+                
+                dl_col1, dl_col2 = st.columns(2)
+                with dl_col1:
+                    st.download_button(
+                        label="📥 Download Submission CSV",
+                        data=csv_data,
+                        file_name="submission.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                with dl_col2:
+                    st.download_button(
+                        label="📊 Download Excel Spreadsheet",
+                        data=excel_data,
+                        file_name="submission.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        use_container_width=True
+                    )
                 
                 # Custom HTML table styling
                 table_rows = ""
